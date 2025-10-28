@@ -14,8 +14,8 @@ function App() {
     const res = await fetch(
       "https://perfume-label-backend.onrender.com/generate_label?" +
         new URLSearchParams({
-          name: perfume,
-          shop: shop,
+          perfume_name: perfume,
+          shop_name: shop,
         })
     );
 
