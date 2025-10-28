@@ -5,34 +5,38 @@ function App() {
   const [shop, setShop] = useState("");
 
   const handlePrint = async () => {
-    if (!perfume || !shop) {
-      alert("الرجاء إدخال اسم العطر واسم المحل");
-      return;
+  if (!perfume || !shop) {
+    alert("الرجاء إدخال اسم العطر واسم المحل");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      "https://perfume-label-backend.onrender.com/generate_label?" +
+        new URLSearchParams({
+          name: perfume,
+          shop: shop,
+        })
+    );
+
+    if (!res.ok) {
+      throw new Error(`خطأ في الاتصال: ${res.status}`);
     }
 
-    try {
-      const res = await fetch(
-        `https://perfume-label-backend.onrender.com/generate_label?perfume_name=${encodeURIComponent(perfume)}&shop_name=${encodeURIComponent(shop)}`
-      );
+    const blob = await res.blob();
+    const fileURL = window.URL.createObjectURL(blob);
 
-      if (!res.ok) {
-        throw new Error(`خطأ في الاتصال: ${res.status}`);
-      }
-
-      const blob = await res.blob();
-      const fileURL = window.URL.createObjectURL(blob);
-
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = fileURL;
-      document.body.appendChild(iframe);
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } catch (error) {
-      console.error(error);
-      alert("حدث خطأ أثناء الطباعة، تأكد من تشغيل الطابعة.");
-    }
-  };
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = fileURL;
+    document.body.appendChild(iframe);
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  } catch (error) {
+    console.error(error);
+    alert("حدث خطأ أثناء الطباعة، تأكد من تشغيل الطابعة.");
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f] to-[#3a2a1a] flex flex-col items-center justify-center text-white font-[Cairo]">
