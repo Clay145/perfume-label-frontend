@@ -26,15 +26,12 @@ function App() {
     const blob = await res.blob();
     const fileURL = window.URL.createObjectURL(blob);
 
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = fileURL;
-    document.body.appendChild(iframe);
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    // ✅ على الهاتف: يفتح الملف في نافذة جديدة للطباعة أو الحفظ
+    window.open(fileURL, "_blank");
+
   } catch (error) {
     console.error(error);
-    alert("حدث خطأ أثناء الطباعة، تأكد من تشغيل الطابعة.");
+    alert("حدث خطأ أثناء الطباعة، تأكد من تشغيل الطابعة أو إعادة المحاولة.");
   }
 };
 
