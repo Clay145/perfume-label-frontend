@@ -83,7 +83,7 @@ function App() {
           min="1"
           max="35"
           className="border border-amber-400/60 bg-transparent text-white placeholder:text-gray-300 p-3 rounded-lg w-full mb-6 text-center focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
-          placeholder="عدد الملصقات (1 - 35)"
+          placeholder="عدد الملصقات (35)"
           value={copies}
           onChange={(e) => setCopies(e.target.value)}
         />
