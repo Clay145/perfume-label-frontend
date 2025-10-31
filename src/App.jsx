@@ -1,42 +1,6 @@
 import { useState } from "react";
 
-/**
- * App.jsx
- * واجهة تحكم ديناميكية لإعداد الملصق ثم طلب توليد PDF من backend
- *
- * ملاحظة: تأكد أن backend يستقبل POST على /generate_label كما في main.py الذي أعددناه.
- * وعدّل BACKEND_URL أسفل هذا الملف إذا كان مختلفًا.
- */
-
 const BACKEND_URL = "https://perfume-label-backend.onrender.com/generate_label";
-
-function ExtraFieldRow({ idx, field, onChange, onRemove }) {
-  return (
-    <div className="flex gap-2 mb-2 items-center">
-      <input
-        type="text"
-        placeholder="حقل (مثلاً: بلد المنشأ)"
-        className="flex-1 p-2 rounded border bg-transparent text-white placeholder:text-gray-300"
-        value={field.label}
-        onChange={(e) => onChange(idx, { ...field, label: e.target.value })}
-      />
-      <input
-        type="text"
-        placeholder="القيمة"
-        className="flex-1 p-2 rounded border bg-transparent text-white placeholder:text-gray-300"
-        value={field.value}
-        onChange={(e) => onChange(idx, { ...field, value: e.target.value })}
-      />
-      <button
-        onClick={() => onRemove(idx)}
-        className="px-3 py-2 bg-red-500 rounded text-white"
-        title="حذف"
-      >
-        ✕
-      </button>
-    </div>
-  );
-}
 
 export default function App() {
   const [perfume, setPerfume] = useState("");
@@ -45,193 +9,262 @@ export default function App() {
   const [multiplier, setMultiplier] = useState("");
   const [copies, setCopies] = useState(1);
 
-  // إعدادات تصميم الملصق
-  const [labelWidth, setLabelWidth] = useState(113.39); // نقاط (تقريباً 4 سم)
+  const [labelWidth, setLabelWidth] = useState(113.39);
   const [labelHeight, setLabelHeight] = useState(113.39);
   const [fontPerfume, setFontPerfume] = useState(10);
   const [fontShop, setFontShop] = useState(8);
   const [fontPrice, setFontPrice] = useState(9);
+
+  const [logo, setLogo] = useState(null);
+  const [logoSize, setLogoSize] = useState(30);
+  const [logoYPosition, setLogoYPosition] = useState(85); // المسافة من أسفل الملصق
   const [extraFields, setExtraFields] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
-  const addExtraField = () => {
-    setExtraFields([...extraFields, { label: "", value: "" }]);
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setLogo(file);
+    }
   };
 
-  const updateExtraField = (idx, val) => {
+  const addExtraField = () => setExtraFields([...extraFields, { label: "", value: "" }]);
+  const updateExtraField = (i, val) => {
     const arr = [...extraFields];
-    arr[idx] = val;
+    arr[i] = val;
     setExtraFields(arr);
   };
-
-  const removeExtraField = (idx) => {
+  const removeExtraField = (i) => {
     const arr = [...extraFields];
-    arr.splice(idx, 1);
+    arr.splice(i, 1);
     setExtraFields(arr);
   };
 
   const handlePrint = async () => {
     if (!perfume.trim() || !shop.trim()) {
-      alert("الرجاء إدخال اسم العطر واسم المحل");
+      alert("يرجى إدخال اسم العطر واسم المحل.");
       return;
     }
-
-    if (copies < 1 || copies > 35) {
-      alert("عدد الملصقات يجب أن يكون بين 1 و 35");
-      return;
-    }
-
-    // تجميع الإعدادات في JSON
-    const payload = {
-      perfume_name: perfume.trim(),
-      shop_name: shop.trim(),
-      price: price.trim(),
-      multiplier: multiplier.trim(),
-      copies: Number(copies),
-      label_width: Number(labelWidth),
-      label_height: Number(labelHeight),
-      font_perfume: Number(fontPerfume),
-      font_shop: Number(fontShop),
-      font_price: Number(fontPrice),
-      extra_fields: extraFields.filter(f => f.label.trim() || f.value.trim()),
-    };
 
     setLoading(true);
+
+    const formData = new FormData();
+    formData.append("perfume_name", perfume);
+    formData.append("shop_name", shop);
+    formData.append("price", price);
+    formData.append("multiplier", multiplier);
+    formData.append("copies", copies);
+    formData.append("label_width", labelWidth);
+    formData.append("label_height", labelHeight);
+    formData.append("font_perfume", fontPerfume);
+    formData.append("font_shop", fontShop);
+    formData.append("font_price", fontPrice);
+    formData.append("logo_size", logoSize);
+    formData.append("logo_y", logoYPosition);
+    formData.append("extra_fields", JSON.stringify(extraFields));
+
+    if (logo) {
+      formData.append("logo", logo);
+    }
+
     try {
       const res = await fetch(BACKEND_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error("backend error:", res.status, txt);
-        throw new Error(`خطأ من الخادم: ${res.status}`);
-      }
+      if (!res.ok) throw new Error("فشل الاتصال بالخادم");
 
       const blob = await res.blob();
-      const fileURL = window.URL.createObjectURL(blob);
-      // نفتح الـ PDF في نافذة جديدة (متوافق مع الهاتف والكمبيوتر)
-      window.open(fileURL, "_blank");
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
     } catch (err) {
+      alert("حدث خطأ أثناء الطباعة.");
       console.error(err);
-      alert("حدث خطأ أثناء طلب الطباعة. تحقق من اتصال الإنترنت أو من خادم الـ backend.");
     } finally {
       setLoading(false);
     }
   };
 
-  // معاينة مبسطة: نعرض مربعًا يمثل الملصق (مقاس نسبي للعرض)
-  const previewScale = 0.5; // اضبط للمشاهدة
-  const previewW = Math.max(40, labelWidth * previewScale);
-  const previewH = Math.max(30, labelHeight * previewScale);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f] to-[#3a2a1a] flex items-start justify-center py-8 px-4 text-white font-sans">
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* لوحة الإعدادات */}
-        <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-          <h2 className="text-xl font-bold mb-4 text-amber-300">إعداد الملصق</h2>
+    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-[#141414] to-[#3a2715] text-white font-sans p-4">
+      <div className="max-w-3xl mx-auto space-y-6">
 
-          <label className="block text-sm text-gray-300 mb-1">اسم العطر</label>
-          <input value={perfume} onChange={e=>setPerfume(e.target.value)}
-            className="w-full p-2 mb-3 rounded bg-transparent border border-white/20 text-white"/>
+        {/* العنوان */}
+        <h1 className="text-2xl font-bold text-center text-amber-400">🪶 إدارة ملصقات العطور</h1>
 
-          <label className="block text-sm text-gray-300 mb-1">اسم المحل</label>
-          <input value={shop} onChange={e=>setShop(e.target.value)}
-            className="w-full p-2 mb-3 rounded bg-transparent border border-white/20 text-white"/>
+        {/* قسم البيانات */}
+        <section className="bg-white/5 rounded-2xl p-4 border border-white/10">
+          <h2 className="text-lg font-semibold mb-2 text-amber-300">البيانات الأساسية</h2>
 
-          <div className="flex gap-2 mb-3">
-            <input placeholder="السعر (اختياري)" value={price} onChange={e=>setPrice(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-            <input placeholder="الضرب (مثلاً 2)" value={multiplier} onChange={e=>setMultiplier(e.target.value)}
-              className="w-28 p-2 rounded bg-transparent border border-white/20 text-white" />
+          <div className="grid gap-3">
+            <input
+              className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+              placeholder="اسم العطر"
+              value={perfume}
+              onChange={(e) => setPerfume(e.target.value)}
+            />
+            <input
+              className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+              placeholder="اسم المحل"
+              value={shop}
+              onChange={(e) => setShop(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+                placeholder="السعر"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+              <input
+                className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+                placeholder="العدد (×)"
+                value={multiplier}
+                onChange={(e) => setMultiplier(e.target.value)}
+              />
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="35"
+              className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+              placeholder="عدد النسخ"
+              value={copies}
+              onChange={(e) => setCopies(e.target.value)}
+            />
           </div>
+        </section>
 
-          <label className="block text-sm text-gray-300 mb-1">عدد الملصقات (1-35)</label>
-          <input type="number" min="1" max="35" value={copies} onChange={e=>setCopies(e.target.value)}
-            className="w-full p-2 mb-3 rounded bg-transparent border border-white/20 text-white"/>
+        {/* قسم التصميم */}
+        <section className="bg-white/5 rounded-2xl p-4 border border-white/10">
+          <h2 className="text-lg font-semibold mb-2 text-amber-300">تصميم الملصق</h2>
 
-          <h3 className="mt-4 mb-2 text-sm font-semibold text-gray-200">حجم الملصق (نقطة)</h3>
-          <div className="flex gap-2 mb-3">
-            <input type="number" step="1" value={labelWidth} onChange={e=>setLabelWidth(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-            <input type="number" step="1" value={labelHeight} onChange={e=>setLabelHeight(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-          </div>
-          <div className="text-xs text-gray-400 mb-3">ملاحظة: القيمة الافتراضية 113.39 ≈ 4 سم</div>
+          <div className="grid gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                value={labelWidth}
+                onChange={(e) => setLabelWidth(e.target.value)}
+                className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+                placeholder="العرض"
+              />
+              <input
+                type="number"
+                value={labelHeight}
+                onChange={(e) => setLabelHeight(e.target.value)}
+                className="p-2 rounded bg-transparent border border-white/20 text-white placeholder:text-gray-300"
+                placeholder="الطول"
+              />
+            </div>
 
-          <h3 className="mt-2 mb-2 text-sm font-semibold text-gray-200">أحجام الخطوط</h3>
-          <div className="flex gap-2 mb-3">
-            <input type="number" value={fontPerfume} onChange={e=>setFontPerfume(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-            <input type="number" value={fontShop} onChange={e=>setFontShop(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-            <input type="number" value={fontPrice} onChange={e=>setFontPrice(e.target.value)}
-              className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white" />
-          </div>
-          <div className="text-xs text-gray-400 mb-3">ترتيب الحقول: حجم اسم العطر، اسم المحل، السعر</div>
-
-          <h3 className="mt-3 mb-2 text-sm font-semibold text-gray-200">حقول إضافية</h3>
-          {extraFields.map((f, i) => (
-            <ExtraFieldRow key={i} idx={i} field={f} onChange={updateExtraField} onRemove={removeExtraField} />
-          ))}
-          <div className="flex gap-2 mb-4">
-            <button onClick={addExtraField} className="px-4 py-2 bg-amber-500 rounded text-black">إضافة حقل</button>
-            <button onClick={()=>setExtraFields([])} className="px-4 py-2 bg-gray-700 rounded text-white">مسح الحقول</button>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={handlePrint} disabled={loading}
-              className="flex-1 px-4 py-3 bg-amber-500 rounded text-black font-semibold">
-              {loading ? "جاري التحضير..." : "طباعة / تحميل PDF"}
-            </button>
-            <button onClick={() => { navigator.clipboard.writeText(JSON.stringify({
-              perfume_name: perfume, shop_name: shop, price, multiplier, copies,
-              label_width: Number(labelWidth), label_height: Number(labelHeight),
-              font_perfume: Number(fontPerfume), font_shop: Number(fontShop), font_price: Number(fontPrice),
-              extra_fields: extraFields
-            }, null, 2)); alert("تم نسخ الإعدادات كسجل JSON") }}
-              className="px-3 py-3 bg-gray-800 rounded text-white">نسخ JSON</button>
-          </div>
-        </div>
-
-        {/* معاينة الملصق (مبسط) */}
-        <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-          <h2 className="text-xl font-bold mb-4 text-amber-300">معاينة سريعة</h2>
-
-          <div className="mb-4 text-sm text-gray-300">المعاينة ليست مطابقة للطباعة 100% لكنها تظهر الترتيب العام.</div>
-
-          <div className="flex justify-center mb-4">
-            <div
-              style={{
-                width: `${previewW}px`,
-                height: `${previewH}px`,
-                borderRadius: "8px",
-                border: "2px solid rgba(255,255,255,0.15)",
-                background: "rgba(255,255,255,0.02)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "8px"
-              }}
-            >
-              <div style={{ height: "30px", width: "60%", background: "rgba(255,255,255,0.06)", borderRadius: 6 }} />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: `${fontPerfume * 0.9}px`, fontWeight: 700 }}>{perfume || "اسم العطر"}</div>
-                <div style={{ fontSize: `${fontShop * 0.8}px`, fontStyle: "italic" }}>{shop || "اسم المحل"}</div>
-              </div>
-              <div style={{ fontSize: `${fontPrice * 0.8}px` }}>{price ? `السعر: ${price} ${multiplier ? `(${multiplier})` : ""}` : ""}</div>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="number"
+                value={fontPerfume}
+                onChange={(e) => setFontPerfume(e.target.value)}
+                className="p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="خط العطر"
+              />
+              <input
+                type="number"
+                value={fontShop}
+                onChange={(e) => setFontShop(e.target.value)}
+                className="p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="خط المحل"
+              />
+              <input
+                type="number"
+                value={fontPrice}
+                onChange={(e) => setFontPrice(e.target.value)}
+                className="p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="خط السعر"
+              />
             </div>
           </div>
 
-          <div className="text-sm text-gray-300">
-            • قم بضبط الأبعاد وخيارات النص ثم اضغط <span className="font-semibold text-white">طباعة / تحميل PDF</span>.
+          {/* رفع الشعار */}
+          <div className="mt-4">
+            <label className="block text-sm mb-1 text-gray-300">تغيير الشعار</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleLogoChange}
+              className="text-sm text-gray-300"
+            />
+            {logo && (
+              <div className="mt-2">
+                <img
+                  src={URL.createObjectURL(logo)}
+                  alt="logo preview"
+                  className="w-16 h-16 object-contain mx-auto"
+                />
+              </div>
+            )}
+            <div className="flex gap-2 mt-3">
+              <input
+                type="number"
+                value={logoSize}
+                onChange={(e) => setLogoSize(e.target.value)}
+                className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="حجم الشعار"
+              />
+              <input
+                type="number"
+                value={logoYPosition}
+                onChange={(e) => setLogoYPosition(e.target.value)}
+                className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="موضع الشعار"
+              />
+            </div>
           </div>
-        </div>
+        </section>
+
+        {/* الحقول الإضافية */}
+        <section className="bg-white/5 rounded-2xl p-4 border border-white/10">
+          <h2 className="text-lg font-semibold mb-2 text-amber-300">حقول إضافية</h2>
+          {extraFields.map((f, i) => (
+            <div key={i} className="flex gap-2 mb-2">
+              <input
+                className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="التسمية"
+                value={f.label}
+                onChange={(e) => updateExtraField(i, { ...f, label: e.target.value })}
+              />
+              <input
+                className="flex-1 p-2 rounded bg-transparent border border-white/20 text-white"
+                placeholder="القيمة"
+                value={f.value}
+                onChange={(e) => updateExtraField(i, { ...f, value: e.target.value })}
+              />
+              <button
+                onClick={() => removeExtraField(i)}
+                className="px-3 bg-red-500 rounded text-white"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={addExtraField}
+            className="mt-2 px-4 py-2 bg-amber-500 text-black rounded font-semibold"
+          >
+            ➕ إضافة حقل
+          </button>
+        </section>
+
+        {/* الطباعة */}
+        <section className="text-center">
+          <button
+            onClick={handlePrint}
+            disabled={loading}
+            className="px-6 py-3 bg-amber-400 text-black font-bold rounded-lg w-full md:w-auto"
+          >
+            {loading ? "جاري إنشاء الملف..." : "📄 طباعة / تحميل PDF"}
+          </button>
+        </section>
+
       </div>
     </div>
   );
