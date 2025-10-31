@@ -1,273 +1,167 @@
 import { useState } from "react";
 
 function App() {
-  const [perfumeName, setPerfumeName] = useState("");
-  const [shopName, setShopName] = useState("");
-  const [price, setPrice] = useState("");
-  const [multiplier, setMultiplier] = useState("");
-  const [copies, setCopies] = useState(1);
-  const [labelWidth, setLabelWidth] = useState(113.39);
-  const [labelHeight, setLabelHeight] = useState(113.39);
-  const [logoWidth, setLogoWidth] = useState(30);
-  const [logoHeight, setLogoHeight] = useState(30);
-  const [fontPerfumeSize, setFontPerfumeSize] = useState(10);
-  const [fontShopSize, setFontShopSize] = useState(8);
-  const [fontPerfumeFamily, setFontPerfumeFamily] = useState("Helvetica-Bold");
-  const [fontShopFamily, setFontShopFamily] = useState("Times-Italic");
-  const [extraFields, setExtraFields] = useState([]);
-  const [newField, setNewField] = useState({ label: "", value: "" });
-  const [logoFile, setLogoFile] = useState(null);
+  const [settings, setSettings] = useState({
+    perfume_name: "",
+    shop_name: "",
+    price: "",
+    multiplier: "",
+    copies: 1,
+    label_width: 113.39,
+    label_height: 113.39,
+    font_perfume: 10,
+    font_shop: 8,
+    font_price: 9,
+    font_family_perfume: "Helvetica-Bold",
+    font_family_shop: "Times-Italic",
+    extra_fields: [],
+  });
 
-  const backendUrl = "https://perfume-label-backend.onrender.com";
+  const fontFamilies = [
+    "Helvetica",
+    "Helvetica-Bold",
+    "Helvetica-Oblique",
+    "Times-Roman",
+    "Times-Bold",
+    "Times-Italic",
+    "Courier",
+  ];
 
-  // ✅ رفع اللوجو
-  const uploadLogo = async () => {
-    if (!logoFile) return alert("الرجاء اختيار ملف لوجو أولاً");
-    const formData = new FormData();
-    formData.append("file", logoFile);
-    const res = await fetch(`${backendUrl}/upload_logo`, {
-      method: "POST",
-      body: formData,
-    });
-    const data = await res.json();
-    alert(data.message || "تم رفع اللوجو بنجاح");
+  const handleChange = (key, value) => {
+    setSettings({ ...settings, [key]: value });
   };
 
-  // ✅ توليد PDF
   const generatePDF = async () => {
-    const settings = {
-      perfume_name: perfumeName,
-      shop_name: shopName,
-      price,
-      multiplier,
-      copies: Number(copies),
-      label_width: Number(labelWidth),
-      label_height: Number(labelHeight),
-      logo_width: Number(logoWidth),
-      logo_height: Number(logoHeight),
-      font_perfume: Number(fontPerfumeSize),
-      font_shop: Number(fontShopSize),
-      font_perfume_family: fontPerfumeFamily,
-      font_shop_family: fontShopFamily,
-      extra_fields: extraFields,
-    };
-
-    const response = await fetch(`${backendUrl}/generate_label`, {
+    const response = await fetch("https://perfume-label-backend.onrender.com/generate_label", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
 
-    if (!response.ok) {
-      alert("حدث خطأ أثناء إنشاء الملف");
-      return;
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "labels.pdf";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } else {
+      alert("❌ حدث خطأ أثناء إنشاء PDF");
     }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "labels.pdf";
-    a.click();
-  };
-
-  // ✅ إضافة حقل إضافي
-  const addField = () => {
-    if (!newField.label || !newField.value) return;
-    setExtraFields([...extraFields, newField]);
-    setNewField({ label: "", value: "" });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-100 p-4 flex flex-col items-center">
-      <div className="bg-white shadow-lg rounded-2xl p-6 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center text-purple-700 mb-4">
-          🏷️ مولد ملصقات العطور
-        </h1>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 flex flex-col items-center">
+      <div className="bg-white shadow-xl rounded-2xl p-6 w-full max-w-lg">
+        <h1 className="text-xl font-bold text-center mb-4">🎨 إعدادات ملصق العطور</h1>
 
-        {/* الاسم والمحــل */}
-        <div className="space-y-3">
+        {/* معلومات النصوص */}
+        <div className="grid grid-cols-2 gap-3">
           <input
-            type="text"
+            className="border p-2 rounded"
             placeholder="اسم العطر"
-            value={perfumeName}
-            onChange={(e) => setPerfumeName(e.target.value)}
-            className="w-full border rounded-lg p-2"
+            value={settings.perfume_name}
+            onChange={(e) => handleChange("perfume_name", e.target.value)}
           />
           <input
-            type="text"
+            className="border p-2 rounded"
             placeholder="اسم المحل"
-            value={shopName}
-            onChange={(e) => setShopName(e.target.value)}
-            className="w-full border rounded-lg p-2"
+            value={settings.shop_name}
+            onChange={(e) => handleChange("shop_name", e.target.value)}
           />
-        </div>
-
-        {/* إعدادات الخط */}
-        <div className="mt-4 border-t pt-3">
-          <h2 className="font-semibold text-gray-700 mb-2">✏️ إعدادات الخط</h2>
-
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <input
-              type="number"
-              placeholder="حجم خط العطر"
-              value={fontPerfumeSize}
-              onChange={(e) => setFontPerfumeSize(e.target.value)}
-              className="border rounded-lg p-2"
-            />
-            <select
-              value={fontPerfumeFamily}
-              onChange={(e) => setFontPerfumeFamily(e.target.value)}
-              className="border rounded-lg p-2"
-            >
-              <option value="Helvetica-Bold">Helvetica-Bold</option>
-              <option value="Times-BoldItalic">Times-BoldItalic</option>
-              <option value="Courier-Bold">Courier-Bold</option>
-              <option value="Helvetica-Oblique">Helvetica-Oblique</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              placeholder="حجم خط المحل"
-              value={fontShopSize}
-              onChange={(e) => setFontShopSize(e.target.value)}
-              className="border rounded-lg p-2"
-            />
-            <select
-              value={fontShopFamily}
-              onChange={(e) => setFontShopFamily(e.target.value)}
-              className="border rounded-lg p-2"
-            >
-              <option value="Times-Italic">Times-Italic</option>
-              <option value="Helvetica-Bold">Helvetica-Bold</option>
-              <option value="Courier">Courier</option>
-              <option value="Times-Roman">Times-Roman</option>
-            </select>
-          </div>
-        </div>
-
-        {/* السعر والضرب */}
-        <div className="flex gap-2 mt-3">
           <input
-            type="text"
+            className="border p-2 rounded"
             placeholder="السعر"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            className="w-1/2 border rounded-lg p-2"
+            value={settings.price}
+            onChange={(e) => handleChange("price", e.target.value)}
           />
           <input
-            type="text"
-            placeholder="الضرب ×"
-            value={multiplier}
-            onChange={(e) => setMultiplier(e.target.value)}
-            className="w-1/2 border rounded-lg p-2"
+            className="border p-2 rounded"
+            placeholder="الكمية (×)"
+            value={settings.multiplier}
+            onChange={(e) => handleChange("multiplier", e.target.value)}
           />
-        </div>
-
-        {/* النسخ وحجم الملصق */}
-        <div className="grid grid-cols-2 gap-2 mt-3">
           <input
             type="number"
+            className="border p-2 rounded"
             placeholder="عدد النسخ"
-            value={copies}
-            onChange={(e) => setCopies(e.target.value)}
-            className="border rounded-lg p-2"
-          />
-          <input
-            type="number"
-            placeholder="عرض الملصق (pt)"
-            value={labelWidth}
-            onChange={(e) => setLabelWidth(e.target.value)}
-            className="border rounded-lg p-2"
-          />
-          <input
-            type="number"
-            placeholder="طول الملصق (pt)"
-            value={labelHeight}
-            onChange={(e) => setLabelHeight(e.target.value)}
-            className="border rounded-lg p-2"
+            value={settings.copies}
+            onChange={(e) => handleChange("copies", parseInt(e.target.value))}
           />
         </div>
 
-        {/* حجم اللوجو */}
-        <div className="grid grid-cols-2 gap-2 mt-3">
+        {/* ⚙️ التحكم في حجم الملصق */}
+        <h2 className="mt-5 font-semibold">📏 أبعاد الملصق (مم)</h2>
+        <div className="grid grid-cols-2 gap-3 mt-2">
           <input
             type="number"
-            placeholder="عرض اللوجو"
-            value={logoWidth}
-            onChange={(e) => setLogoWidth(e.target.value)}
-            className="border rounded-lg p-2"
+            className="border p-2 rounded"
+            placeholder="العرض"
+            value={settings.label_width}
+            onChange={(e) => handleChange("label_width", parseFloat(e.target.value))}
           />
           <input
             type="number"
-            placeholder="طول اللوجو"
-            value={logoHeight}
-            onChange={(e) => setLogoHeight(e.target.value)}
-            className="border rounded-lg p-2"
+            className="border p-2 rounded"
+            placeholder="الارتفاع"
+            value={settings.label_height}
+            onChange={(e) => handleChange("label_height", parseFloat(e.target.value))}
           />
         </div>
 
-        {/* رفع اللوجو */}
-        <div className="mt-3 border rounded-lg p-2">
-          <label className="block text-sm font-medium mb-1">📸 رفع شعار جديد</label>
-          <input
-            type="file"
-            onChange={(e) => setLogoFile(e.target.files[0])}
-            className="w-full"
-          />
-          <button
-            onClick={uploadLogo}
-            className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-3 py-1 mt-2 w-full"
-          >
-            رفع اللوجو
-          </button>
-        </div>
-
-        {/* الحقول الإضافية */}
-        <div className="mt-4 border-t pt-3">
-          <h2 className="font-semibold text-gray-700 mb-2">➕ حقول إضافية</h2>
-          <div className="flex gap-2 mb-2">
+        {/* 🖋️ التحكم في الخط */}
+        <h2 className="mt-5 font-semibold">🖋️ إعدادات الخط</h2>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span>اسم العطر:</span>
             <input
-              type="text"
-              placeholder="الاسم"
-              value={newField.label}
-              onChange={(e) =>
-                setNewField({ ...newField, label: e.target.value })
-              }
-              className="border rounded-lg p-2 w-1/2"
+              type="number"
+              className="border w-16 text-center rounded"
+              value={settings.font_perfume}
+              onChange={(e) => handleChange("font_perfume", parseInt(e.target.value))}
             />
-            <input
-              type="text"
-              placeholder="القيمة"
-              value={newField.value}
-              onChange={(e) =>
-                setNewField({ ...newField, value: e.target.value })
-              }
-              className="border rounded-lg p-2 w-1/2"
-            />
+            <select
+              value={settings.font_family_perfume}
+              onChange={(e) => handleChange("font_family_perfume", e.target.value)}
+              className="border p-1 rounded"
+            >
+              {fontFamilies.map((font) => (
+                <option key={font} value={font}>
+                  {font}
+                </option>
+              ))}
+            </select>
           </div>
-          <button
-            onClick={addField}
-            className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-1 w-full"
-          >
-            إضافة
-          </button>
 
-          <ul className="mt-2 text-sm text-gray-600">
-            {extraFields.map((f, i) => (
-              <li key={i}>• {f.label}: {f.value}</li>
-            ))}
-          </ul>
+          <div className="flex justify-between items-center">
+            <span>اسم المحل:</span>
+            <input
+              type="number"
+              className="border w-16 text-center rounded"
+              value={settings.font_shop}
+              onChange={(e) => handleChange("font_shop", parseInt(e.target.value))}
+            />
+            <select
+              value={settings.font_family_shop}
+              onChange={(e) => handleChange("font_family_shop", e.target.value)}
+              className="border p-1 rounded"
+            >
+              {fontFamilies.map((font) => (
+                <option key={font} value={font}>
+                  {font}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* زر الطباعة */}
         <button
           onClick={generatePDF}
-          className="mt-5 bg-purple-700 hover:bg-purple-800 text-white font-bold w-full py-2 rounded-lg shadow-lg transition"
+          className="mt-6 bg-indigo-600 text-white w-full py-2 rounded-xl hover:bg-indigo-700"
         >
-          🖨️ إنشاء و تحميل PDF
+          🖨️ طباعة الملصق
         </button>
       </div>
     </div>
