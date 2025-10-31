@@ -10,6 +10,10 @@ function App() {
   const [labelHeight, setLabelHeight] = useState(113.39);
   const [logoWidth, setLogoWidth] = useState(30);
   const [logoHeight, setLogoHeight] = useState(30);
+  const [fontPerfumeSize, setFontPerfumeSize] = useState(10);
+  const [fontShopSize, setFontShopSize] = useState(8);
+  const [fontPerfumeFamily, setFontPerfumeFamily] = useState("Helvetica-Bold");
+  const [fontShopFamily, setFontShopFamily] = useState("Times-Italic");
   const [extraFields, setExtraFields] = useState([]);
   const [newField, setNewField] = useState({ label: "", value: "" });
   const [logoFile, setLogoFile] = useState(null);
@@ -41,6 +45,10 @@ function App() {
       label_height: Number(labelHeight),
       logo_width: Number(logoWidth),
       logo_height: Number(logoHeight),
+      font_perfume: Number(fontPerfumeSize),
+      font_shop: Number(fontShopSize),
+      font_perfume_family: fontPerfumeFamily,
+      font_shop_family: fontShopFamily,
       extra_fields: extraFields,
     };
 
@@ -93,6 +101,51 @@ function App() {
             onChange={(e) => setShopName(e.target.value)}
             className="w-full border rounded-lg p-2"
           />
+        </div>
+
+        {/* إعدادات الخط */}
+        <div className="mt-4 border-t pt-3">
+          <h2 className="font-semibold text-gray-700 mb-2">✏️ إعدادات الخط</h2>
+
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <input
+              type="number"
+              placeholder="حجم خط العطر"
+              value={fontPerfumeSize}
+              onChange={(e) => setFontPerfumeSize(e.target.value)}
+              className="border rounded-lg p-2"
+            />
+            <select
+              value={fontPerfumeFamily}
+              onChange={(e) => setFontPerfumeFamily(e.target.value)}
+              className="border rounded-lg p-2"
+            >
+              <option value="Helvetica-Bold">Helvetica-Bold</option>
+              <option value="Times-BoldItalic">Times-BoldItalic</option>
+              <option value="Courier-Bold">Courier-Bold</option>
+              <option value="Helvetica-Oblique">Helvetica-Oblique</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              placeholder="حجم خط المحل"
+              value={fontShopSize}
+              onChange={(e) => setFontShopSize(e.target.value)}
+              className="border rounded-lg p-2"
+            />
+            <select
+              value={fontShopFamily}
+              onChange={(e) => setFontShopFamily(e.target.value)}
+              className="border rounded-lg p-2"
+            >
+              <option value="Times-Italic">Times-Italic</option>
+              <option value="Helvetica-Bold">Helvetica-Bold</option>
+              <option value="Courier">Courier</option>
+              <option value="Times-Roman">Times-Roman</option>
+            </select>
+          </div>
         </div>
 
         {/* السعر والضرب */}
