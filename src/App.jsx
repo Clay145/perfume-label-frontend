@@ -1,167 +1,169 @@
 import { useState } from "react";
+import { Sliders, Printer, Type, Ruler, Store, Tag, Hash } from "lucide-react";
 
 function App() {
-  const [settings, setSettings] = useState({
+  const [form, setForm] = useState({
     perfume_name: "",
     shop_name: "",
     price: "",
     multiplier: "",
     copies: 1,
-    label_width: 113.39,
-    label_height: 113.39,
-    font_perfume: 10,
-    font_shop: 8,
-    font_price: 9,
-    font_family_perfume: "Helvetica-Bold",
-    font_family_shop: "Times-Italic",
-    extra_fields: [],
+    label_width: 40, // cm
+    label_height: 40,
+    corner_radius: 8,
+    font_perfume_size: 12,
+    font_shop_size: 10,
+    font_price_size: 10,
   });
 
-  const fontFamilies = [
-    "Helvetica",
-    "Helvetica-Bold",
-    "Helvetica-Oblique",
-    "Times-Roman",
-    "Times-Bold",
-    "Times-Italic",
-    "Courier",
-  ];
-
-  const handleChange = (key, value) => {
-    setSettings({ ...settings, [key]: value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const generatePDF = async () => {
-    const response = await fetch("https://perfume-label-backend.onrender.com/generate_label", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
+  const handlePrint = async () => {
+    try {
+      const res = await fetch("https://perfume-label-backend.onrender.com/generate_label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    if (response.ok) {
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "labels.pdf";
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } else {
-      alert("❌ حدث خطأ أثناء إنشاء PDF");
+      if (!res.ok) throw new Error("فشل الاتصال بالخادم");
+
+      const blob = await res.blob();
+      const fileURL = window.URL.createObjectURL(blob);
+      window.open(fileURL, "_blank");
+    } catch (err) {
+      alert("⚠️ حدث خطأ أثناء الطباعة: " + err.message);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 flex flex-col items-center">
-      <div className="bg-white shadow-xl rounded-2xl p-6 w-full max-w-lg">
-        <h1 className="text-xl font-bold text-center mb-4">🎨 إعدادات ملصق العطور</h1>
+    <div className="min-h-screen bg-gradient-to-br from-[#1a1a1a] to-[#3a2a1a] flex flex-col items-center justify-center p-4 text-white font-[Cairo]">
+      <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl shadow-2xl border border-white/20 w-full max-w-md">
+        <h1 className="text-2xl font-bold text-center text-amber-400 mb-6">🎨 مولّد ملصقات العطور</h1>
 
-        {/* معلومات النصوص */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* 🏷️ اسم العطر */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 mb-1"><Tag size={18}/> اسم العطر</label>
           <input
-            className="border p-2 rounded"
-            placeholder="اسم العطر"
-            value={settings.perfume_name}
-            onChange={(e) => handleChange("perfume_name", e.target.value)}
-          />
-          <input
-            className="border p-2 rounded"
-            placeholder="اسم المحل"
-            value={settings.shop_name}
-            onChange={(e) => handleChange("shop_name", e.target.value)}
-          />
-          <input
-            className="border p-2 rounded"
-            placeholder="السعر"
-            value={settings.price}
-            onChange={(e) => handleChange("price", e.target.value)}
-          />
-          <input
-            className="border p-2 rounded"
-            placeholder="الكمية (×)"
-            value={settings.multiplier}
-            onChange={(e) => handleChange("multiplier", e.target.value)}
-          />
-          <input
-            type="number"
-            className="border p-2 rounded"
-            placeholder="عدد النسخ"
-            value={settings.copies}
-            onChange={(e) => handleChange("copies", parseInt(e.target.value))}
+            name="perfume_name"
+            className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+            placeholder="أدخل اسم العطر"
+            value={form.perfume_name}
+            onChange={handleChange}
           />
         </div>
 
-        {/* ⚙️ التحكم في حجم الملصق */}
-        <h2 className="mt-5 font-semibold">📏 أبعاد الملصق (مم)</h2>
-        <div className="grid grid-cols-2 gap-3 mt-2">
+        {/* 🏪 اسم المحل */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 mb-1"><Store size={18}/> اسم المحل</label>
           <input
-            type="number"
-            className="border p-2 rounded"
-            placeholder="العرض"
-            value={settings.label_width}
-            onChange={(e) => handleChange("label_width", parseFloat(e.target.value))}
-          />
-          <input
-            type="number"
-            className="border p-2 rounded"
-            placeholder="الارتفاع"
-            value={settings.label_height}
-            onChange={(e) => handleChange("label_height", parseFloat(e.target.value))}
+            name="shop_name"
+            className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+            placeholder="أدخل اسم المحل"
+            value={form.shop_name}
+            onChange={handleChange}
           />
         </div>
 
-        {/* 🖋️ التحكم في الخط */}
-        <h2 className="mt-5 font-semibold">🖋️ إعدادات الخط</h2>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span>اسم العطر:</span>
+        {/* 💰 السعر و × الكمية */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1">
+            <label className="flex items-center gap-2 mb-1"><Type size={18}/> السعر (DA)</label>
             <input
+              name="price"
               type="number"
-              className="border w-16 text-center rounded"
-              value={settings.font_perfume}
-              onChange={(e) => handleChange("font_perfume", parseInt(e.target.value))}
+              min="0"
+              className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+              placeholder="مثال: 1500"
+              value={form.price}
+              onChange={handleChange}
             />
-            <select
-              value={settings.font_family_perfume}
-              onChange={(e) => handleChange("font_family_perfume", e.target.value)}
-              className="border p-1 rounded"
-            >
-              {fontFamilies.map((font) => (
-                <option key={font} value={font}>
-                  {font}
-                </option>
-              ))}
-            </select>
           </div>
-
-          <div className="flex justify-between items-center">
-            <span>اسم المحل:</span>
+          <div className="flex-1">
+            <label className="flex items-center gap-2 mb-1"><Hash size={18}/> × الكمية</label>
             <input
+              name="multiplier"
               type="number"
-              className="border w-16 text-center rounded"
-              value={settings.font_shop}
-              onChange={(e) => handleChange("font_shop", parseInt(e.target.value))}
+              min="1"
+              className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+              placeholder="مثال: 2"
+              value={form.multiplier}
+              onChange={handleChange}
             />
-            <select
-              value={settings.font_family_shop}
-              onChange={(e) => handleChange("font_family_shop", e.target.value)}
-              className="border p-1 rounded"
-            >
-              {fontFamilies.map((font) => (
-                <option key={font} value={font}>
-                  {font}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
-        {/* زر الطباعة */}
+        {/* 🔢 عدد النسخ */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 mb-1"><Printer size={18}/> عدد النسخ</label>
+          <input
+            name="copies"
+            type="number"
+            min="1"
+            max="35"
+            className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+            value={form.copies}
+            onChange={handleChange}
+          />
+        </div>
+
+        {/* 📏 الأبعاد */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1">
+            <label className="flex items-center gap-2 mb-1"><Ruler size={18}/> العرض (mm)</label>
+            <input
+              name="label_width"
+              type="number"
+              className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+              value={form.label_width}
+              onChange={handleChange}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="flex items-center gap-2 mb-1"><Ruler size={18}/> الارتفاع (mm)</label>
+            <input
+              name="label_height"
+              type="number"
+              className="w-full p-2 rounded-lg bg-transparent border border-amber-400/50 text-white text-center focus:ring-2 focus:ring-amber-400 outline-none"
+              value={form.label_height}
+              onChange={handleChange}
+            />
+          </div>
+        </div>
+
+        {/* ✏️ إعدادات الخط */}
+        <div className="mb-6">
+          <label className="flex items-center gap-2 mb-2"><Sliders size={18}/> إعدادات الخط</label>
+          <div className="flex gap-2">
+            <input name="font_perfume_size" type="number" placeholder="عطر" className="flex-1 p-2 rounded-lg text-center bg-transparent border border-amber-400/50" value={form.font_perfume_size} onChange={handleChange}/>
+            <input name="font_shop_size" type="number" placeholder="محل" className="flex-1 p-2 rounded-lg text-center bg-transparent border border-amber-400/50" value={form.font_shop_size} onChange={handleChange}/>
+            <input name="font_price_size" type="number" placeholder="سعر" className="flex-1 p-2 rounded-lg text-center bg-transparent border border-amber-400/50" value={form.font_price_size} onChange={handleChange}/>
+          </div>
+        </div>
+
+        {/* 🔘 زاوية الإطار */}
+        <div className="mb-6">
+          <label className="flex items-center gap-2 mb-1"><Sliders size={18}/> زاوية الإطار</label>
+          <input
+            type="range"
+            name="corner_radius"
+            min="0"
+            max="20"
+            value={form.corner_radius}
+            onChange={handleChange}
+            className="w-full accent-amber-400"
+          />
+        </div>
+
+        {/* 🖨️ زر الطباعة */}
         <button
-          onClick={generatePDF}
-          className="mt-6 bg-indigo-600 text-white w-full py-2 rounded-xl hover:bg-indigo-700"
+          onClick={handlePrint}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold py-3 rounded-full shadow-lg transition-all"
         >
-          🖨️ طباعة الملصق
+          🖨️ طباعة
         </button>
       </div>
     </div>
