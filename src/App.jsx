@@ -151,24 +151,29 @@ export default function App() {
       // 2) prepare payload (backend expects mm for label dims and templates array)
       // 2) إعداد الحمولة (payload)
       const payload = {
-       shop_name: settings.shop_name,
+       perfumeName: null,
+       shopName: settings.shop_name, // اسم المحل
+       price: "",
+       quantity: "",
        copies: settings.copies,
-       label_width_mm: settings.label_width_mm,
-       label_height_mm: settings.label_height_mm,
-       radius_mm: settings.radius_mm,
-       font_perfume_name: settings.font_perfume_name,
-       font_shop_name: settings.font_shop_name,
-       font_perfume_size: settings.font_perfume_size,
-       font_shop_size: settings.font_shop_size,
-       font_price_size: settings.font_price_size,
+       labelWidth: settings.label_width_mm,
+       labelHeight: settings.label_height_mm,
+       borderRadius: settings.radius_mm,
+       fontSettings: {
+         perfumeFont: settings.font_perfume_name,
+         perfumeSize: settings.font_perfume_size,
+         shopFont: settings.font_shop_name,
+         shopSize: settings.font_shop_size,
+         priceFont: settings.font_price_font || "Helvetica-Bold",
+         priceSize: settings.font_price_size
+        },
        templates: templates.map((t) => ({
-         perfume_name: t.perfume_name,
-         price: Number(t.price) || 0,
-         multiplier: Number(t.multiplier) || 0,
-         shop_name: t.shop_name || settings.shop_name
+         perfumeName: t.perfume_name,
+         price: String(t.price),
+         multiplier: String(t.multiplier),
+         shopName: t.shop_name || settings.shop_name
         }))
       };
-
 
 console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
 
