@@ -149,24 +149,31 @@ export default function App() {
       }
 
       // 2) prepare payload (backend expects mm for label dims and templates array)
-      const payload = {
-        shop_name: settings.shop_name,
-        copies: Number(settings.copies),
-        label_width_mm: Number(settings.label_width_mm),
-        label_height_mm: Number(settings.label_height_mm),
-        radius_mm: Number(settings.radius_mm || 0),
-        font_perfume_name: settings.font_perfume_name || "Helvetica-Bold",
-        font_shop_name: settings.font_shop_name || "Times-Italic",
-        font_perfume_size: Number(settings.font_perfume_size),
-        font_shop_size: Number(settings.font_shop_size),
-        font_price_size: Number(settings.font_price_size),
-        templates: templates.map((t) => ({
-          perfume_name: t.perfume_name,
-          price: t.price || "",
-          multiplier: t.multiplier || "",
-          shop_name: t.shop_name && t.shop_name.trim() !== "" ? t.shop_name : undefined
-        })),
-      };
+      // 2) إعداد الحمولة (payload)
+const payload = {
+  shopName: settings.shop_name,
+  copies: Number(settings.copies),
+  labelWidth: Number(settings.label_width_mm),
+  labelHeight: Number(settings.label_height_mm),
+  borderRadius: Number(settings.radius_mm || 0),
+
+  fontSettings: {
+    perfumeFont: settings.font_perfume_name || "Helvetica-Bold",
+    perfumeSize: Number(settings.font_perfume_size),
+    shopFont: settings.font_shop_name || "Times-Italic",
+    shopSize: Number(settings.font_shop_size),
+    priceFont: "Helvetica-Bold",
+    priceSize: Number(settings.font_price_size),
+  },
+
+  templates: templates.map((t) => ({
+    perfumeName: t.perfume_name,
+    price: t.price || "",
+    multiplier: t.multiplier || "",
+    shopName: t.shop_name && t.shop_name.trim() !== "" ? t.shop_name : undefined,
+  })),
+};
+
 
       const res = await fetch(`${BACKEND_BASE}/generate_label`, {
         method: "POST",
