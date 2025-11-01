@@ -151,29 +151,26 @@ export default function App() {
       // 2) prepare payload (backend expects mm for label dims and templates array)
       // 2) إعداد الحمولة (payload)
       const payload = {
-       perfumeName: null,
-       shopName: settings.shop_name,
-       price: "",
-       quantity: "",
-       copies: settings.copies,
-       labelWidth: settings.label_width_mm,
-       labelHeight: settings.label_height_mm,
-       borderRadius: settings.radius_mm,
-       fontSettings: {
-         perfumeFont: settings.font_perfume_name,
-         perfumeSize: settings.font_perfume_size,
-         shopFont: settings.font_shop_name,
-         shopSize: settings.font_shop_size,
-         priceFont: "Helvetica-Bold",
-         priceSize: settings.font_price_size,
-        },
-      templates: templates.map((t) => ({
-         perfumeName: t.perfume_name,
-         price: String(parseInt(t.price)), // تأكد أنها أرقام صحيحة
-         multiplier: String(parseInt(t.multiplier)), // أيضا أرقام صحيحة
-         shopName: t.shop_name || settings.shop_name,
-        })),
-      };
+       shop_name: "okpe",
+       copies: 4,
+       label_width_mm: 40,
+       label_height_mm: 40,
+       radius_mm: 2,
+       font_perfume_name: "Helvetica-Bold",
+       font_shop_name: "Times-Italic",
+       font_perfume_size: 14,
+       font_shop_size: 10,
+       font_price_size: 10,
+       templates: [
+        {
+         perfume_name: "kopkvd",
+         price: "3520",
+         multiplier: "5",
+         shop_name: "opkgred"
+        }
+      ]
+    };
+
 
 console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
 
