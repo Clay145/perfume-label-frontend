@@ -152,7 +152,7 @@ export default function App() {
       // 2) إعداد الحمولة (payload)
       const payload = {
        perfumeName: null,
-       shopName: settings.shop_name, // اسم المحل
+       shopName: settings.shop_name,
        price: "",
        quantity: "",
        copies: settings.copies,
@@ -164,15 +164,15 @@ export default function App() {
          perfumeSize: settings.font_perfume_size,
          shopFont: settings.font_shop_name,
          shopSize: settings.font_shop_size,
-         priceFont: settings.font_price_font || "Helvetica-Bold",
-         priceSize: settings.font_price_size
+         priceFont: "Helvetica-Bold",
+         priceSize: settings.font_price_size,
         },
-       templates: templates.map((t) => ({
+      templates: templates.map((t) => ({
          perfumeName: t.perfume_name,
-         price: String(t.price),
-         multiplier: String(t.multiplier),
-         shopName: t.shop_name || settings.shop_name
-        }))
+         price: String(parseInt(t.price)), // تأكد أنها أرقام صحيحة
+         multiplier: String(parseInt(t.multiplier)), // أيضا أرقام صحيحة
+         shopName: t.shop_name || settings.shop_name,
+        })),
       };
 
 console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
