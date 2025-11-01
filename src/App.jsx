@@ -167,11 +167,11 @@ const payload = {
   },
 
   templates: templates.map((t) => ({
-    perfumeName: t.perfume_name,
-    price: t.price || "",
-    multiplier: t.multiplier || "",
-    shopName: t.shop_name && t.shop_name.trim() !== "" ? t.shop_name : undefined,
-  })),
+  perfumeName: t.perfume_name,
+  price: Number(t.price) || 0,
+  multiplier: Number(t.multiplier) || 0,
+  shopName: t.shop_name && t.shop_name.trim() !== "" ? t.shop_name : undefined,
+})),
 };
 
 console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
