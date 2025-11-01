@@ -1,174 +1,363 @@
 import React, { useState } from "react";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { motion } from "framer-motion";
-import axios from "axios";
+
+/*
+  App.jsx
+  - Tabs: Settings | Templates | Preview & Print
+  - Sends POST /upload_logo (optional) then POST /generate_label
+  - Expects backend with LabelSettings model:
+    {
+      shop_name, copies, label_width_mm, label_height_mm, radius_mm,
+      font_perfume_name, font_shop_name, font_perfume_size, font_shop_size, font_price_size,
+      templates: [{perfume_name, price, multiplier, shop_name, extra_fields?}, ...]
+    }
+*/
+
+const BACKEND_BASE = "https://perfume-label-backend.onrender.com"; // <- غيّره هنا إذا لزم
+
+const defaultSettings = {
+  shop_name: "",
+  copies: 4,
+  label_width_mm: 40,   // mm
+  label_height_mm: 40,  // mm
+  radius_mm: 2,
+  font_perfume_name: "Helvetica-Bold",
+  font_shop_name: "Times-Italic",
+  font_perfume_size: 14,
+  font_shop_size: 10,
+  font_price_size: 10,
+};
 
 export default function App() {
-  const [perfumeName, setPerfumeName] = useState("");
-  const [shopName, setShopName] = useState("");
-  const [price, setPrice] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [copies, setCopies] = useState(1);
-  const [labelWidth, setLabelWidth] = useState(80);
-  const [labelHeight, setLabelHeight] = useState(40);
-  const [borderRadius, setBorderRadius] = useState(0);
-  const [fontSettings, setFontSettings] = useState({
-    perfumeFont: "Poppins",
-    perfumeSize: 16,
-    shopFont: "Merriweather",
-    shopSize: 14,
-    priceFont: "Roboto",
-    priceSize: 14,
-    quantityFont: "Roboto",
-    quantitySize: 14,
-  });
-  const [templates, setTemplates] = useState([{ perfumeName: "" }]);
+  const [tab, setTab] = useState("settings"); // 'settings' | 'templates' | 'preview'
+  const [settings, setSettings] = useState(defaultSettings);
+  const [templates, setTemplates] = useState([
+    { perfume_name: "", price: "", multiplier: "", shop_name: "" },
+  ]);
+  const [logoFile, setLogoFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
-  const handleAddTemplate = () => {
-    setTemplates([...templates, { perfumeName: "" }]);
-  };
+  // helpers validators
+  const isDigits = (s) => /^\d*$/.test(String(s));
+  const clampCopies = (v) => Math.max(1, Math.min(35, Number(v) || 1));
 
-  const handleGeneratePDF = async () => {
+  // handle settings change
+  function updateSettings(key, value) {
+    setSettings((s) => ({ ...s, [key]: value }));
+  }
+
+  // template manipulation
+  function addTemplate() {
+    setTemplates((t) => [...t, { perfume_name: "", price: "", multiplier: "", shop_name: "" }]);
+    setPreviewIndex(templates.length);
+  }
+  function updateTemplate(idx, key, value) {
+    setTemplates((t) => {
+      const arr = [...t];
+      arr[idx] = { ...arr[idx], [key]: value };
+      return arr;
+    });
+  }
+  function removeTemplate(idx) {
+    setTemplates((t) => t.filter((_, i) => i !== idx));
+    setPreviewIndex((p) => Math.max(0, p - 1));
+  }
+
+  // upload logo to backend
+  async function uploadLogoIfAny() {
+    if (!logoFile) return { ok: true };
+    const fd = new FormData();
+    fd.append("file", logoFile);
     try {
-      const response = await axios.post("http://localhost:5000/generate-pdf", {
-        perfumeName,
-        shopName,
-        price,
-        quantity,
-        copies,
-        labelWidth,
-        labelHeight,
-        borderRadius,
-        fontSettings,
-        templates,
+      const res = await fetch(`${BACKEND_BASE}/upload_logo`, {
+        method: "POST",
+        body: fd,
       });
-      const blob = new Blob([response.data], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-      window.open(url);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("حدث خطأ أثناء إنشاء الملف. يرجى المحاولة مجدداً.");
+      return res;
+    } catch (err) {
+      console.error("uploadLogo error", err);
+      return { ok: false, error: err };
     }
-  };
+  }
+
+  // validation before sending
+  function validateAll() {
+    // settings
+    if (!settings.shop_name || String(settings.shop_name).trim() === "") {
+      alert("الرجاء إدخال اسم المحل في الإعدادات.");
+      setTab("settings");
+      return false;
+    }
+    if (!settings.label_width_mm || !settings.label_height_mm) {
+      alert("الرجاء إدخال أبعاد الملصق بالـ mm.");
+      setTab("settings");
+      return false;
+    }
+    // check A4 limits
+    const maxWmm = (595.28) / 2.83465; // A4 width points -> mm approx (595.28 pt)
+    const maxHmm = (841.89) / 2.83465;
+    if (Number(settings.label_width_mm) > maxWmm || Number(settings.label_height_mm) > maxHmm) {
+      alert(`الأبعاد أكبر من صفحة A4. أقصى عرض ≈ ${Math.floor(maxWmm)}mm، أقصى ارتفاع ≈ ${Math.floor(maxHmm)}mm`);
+      setTab("settings");
+      return false;
+    }
+    if (!templates || templates.length === 0) {
+      alert("يجب إضافة قالب واحد على الأقل في Templates.");
+      setTab("templates");
+      return false;
+    }
+    // validate templates: perfume_name required; price and multiplier digits only
+    for (let i = 0; i < templates.length; i++) {
+      const t = templates[i];
+      if (!t.perfume_name || String(t.perfume_name).trim() === "") {
+        alert(`الرجاء إدخال اسم العطر في القالب رقم ${i + 1}.`);
+        setTab("templates");
+        return false;
+      }
+      if (t.price && !isDigits(t.price)) {
+        alert(`السعر يجب أن يحتوي أرقامًا فقط في القالب رقم ${i + 1}.`);
+        setTab("templates");
+        return false;
+      }
+      if (t.multiplier && !isDigits(t.multiplier)) {
+        alert(`الكمية (×) يجب أن تكون رقمًا فقط في القالب رقم ${i + 1}.`);
+        setTab("templates");
+        return false;
+      }
+    }
+    // copies range
+    if (!settings.copies || settings.copies < 1 || settings.copies > 35) {
+      alert("عدد النسخ يجب أن يكون بين 1 و 35.");
+      setTab("settings");
+      return false;
+    }
+    return true;
+  }
+
+  // generate and open PDF
+  async function handlePrintAll() {
+    if (!validateAll()) return;
+    setLoading(true);
+    try {
+      // 1) upload logo if exists
+      const up = await uploadLogoIfAny();
+      if (!up.ok) {
+        const txt = await up.text().catch(()=>null);
+        alert("فشل رفع اللوجو: " + (txt || up.status));
+        setLoading(false);
+        return;
+      }
+
+      // 2) prepare payload (backend expects mm for label dims and templates array)
+      const payload = {
+        shop_name: settings.shop_name,
+        copies: Number(settings.copies),
+        label_width_mm: Number(settings.label_width_mm),
+        label_height_mm: Number(settings.label_height_mm),
+        radius_mm: Number(settings.radius_mm || 0),
+        font_perfume_name: settings.font_perfume_name || "Helvetica-Bold",
+        font_shop_name: settings.font_shop_name || "Times-Italic",
+        font_perfume_size: Number(settings.font_perfume_size),
+        font_shop_size: Number(settings.font_shop_size),
+        font_price_size: Number(settings.font_price_size),
+        templates: templates.map((t) => ({
+          perfume_name: t.perfume_name,
+          price: t.price || "",
+          multiplier: t.multiplier || "",
+          shop_name: t.shop_name && t.shop_name.trim() !== "" ? t.shop_name : undefined
+        })),
+      };
+
+      const res = await fetch(`${BACKEND_BASE}/generate_label`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(()=>null);
+        alert("خطأ من الخادم: " + (txt || res.status));
+        setLoading(false);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // open in new tab (mobile will allow print/share)
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error(err);
+      alert("حدث خطأ أثناء عملية الإنشاء. تحقق من الكونسول.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // small preview render for one template at previewIndex
+  function PreviewCard({ t }) {
+    const fontPerf = settings.font_perfume_size || 12;
+    const fontShop = settings.font_shop_size || 10;
+    const fontPrice = settings.font_price_size || 10;
+    const radius = Number(settings.radius_mm || 0);
+    return (
+      <div className="w-full max-w-xs bg-white/5 rounded-lg p-4 flex flex-col items-center gap-3">
+        <div style={{
+          width: "180px",
+          height: "180px",
+          borderRadius: `${Math.max(0, Math.min(20, radius*1.5))}px`,
+          border: "1px solid rgba(255,255,255,0.12)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: 12
+        }}>
+          <div style={{width: "60%", height: 36, background: "rgba(255,255,255,0.06)", borderRadius: 6}} />
+          <div style={{textAlign: "center"}}>
+            <div style={{fontSize: `${fontPerf}px`, fontWeight: 700}}>{t.perfume_name}</div>
+            <div style={{fontSize: `${fontShop}px`, fontStyle: "italic"}}>{t.shop_name || settings.shop_name}</div>
+          </div>
+          <div style={{fontSize: `${fontPrice}px`}}>{t.price ? `${t.price} د.ج ${t.multiplier ? `(×${t.multiplier})` : ""}` : ""}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 flex flex-col items-center p-4">
-      <motion.h1
-        className="text-3xl font-bold mb-6 text-gray-800"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        مولّد ملصقات العطور
-      </motion.h1>
+    <div className="min-h-screen bg-gradient-to-br from-[#0b0b0b] to-[#2b1f12] p-4 text-white font-sans">
+      <div className="max-w-lg mx-auto space-y-4">
 
-      <div className="w-full max-w-lg space-y-4">
-        {/* بيانات العطر */}
-        <Card className="shadow-lg rounded-2xl">
-          <CardHeader className="font-semibold text-lg text-gray-700">🧴 بيانات العطر</CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label>اسم العطر</Label>
-              <Input value={perfumeName} onChange={(e) => setPerfumeName(e.target.value)} placeholder="أدخل اسم العطر" />
-            </div>
-            <div>
-              <Label>اسم المحل</Label>
-              <Input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="أدخل اسم المحل" />
-            </div>
-            <div>
-              <Label>السعر (دج)</Label>
-              <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="مثلاً: 1500" />
-            </div>
-            <div>
-              <Label>الكمية (×)</Label>
-              <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="مثلاً: 100" />
-            </div>
-            <div>
-              <Label>عدد النسخ</Label>
-              <Input type="number" min="1" max="35" value={copies} onChange={(e) => setCopies(e.target.value)} />
-            </div>
-          </CardContent>
-        </Card>
+        {/* header */}
+        <header className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-amber-300">Amine Perfume — مولّد الملصقات</h1>
+          <div className="flex gap-2">
+            <button onClick={()=>setTab("settings")} className={`px-3 py-1 rounded ${tab==="settings" ? "bg-amber-400 text-black" : "bg-white/5"}`}>الإعدادات</button>
+            <button onClick={()=>setTab("templates")} className={`px-3 py-1 rounded ${tab==="templates" ? "bg-amber-400 text-black" : "bg-white/5"}`}>Templates</button>
+            <button onClick={()=>setTab("preview")} className={`px-3 py-1 rounded ${tab==="preview" ? "bg-amber-400 text-black" : "bg-white/5"}`}>معاينة</button>
+          </div>
+        </header>
 
-        {/* إعدادات الملصق */}
-        <Card className="shadow-lg rounded-2xl">
-          <CardHeader className="font-semibold text-lg text-gray-700">📏 إعدادات الملصق</CardHeader>
-          <CardContent className="space-y-3">
-            <Label>العرض (مم)</Label>
-            <Slider value={[labelWidth]} min={20} max={210} step={1} onValueChange={(v) => setLabelWidth(v[0])} />
-            <Label>الارتفاع (مم)</Label>
-            <Slider value={[labelHeight]} min={20} max={297} step={1} onValueChange={(v) => setLabelHeight(v[0])} />
-            <Label>زاوية الملصق</Label>
-            <Slider value={[borderRadius]} min={0} max={30} step={1} onValueChange={(v) => setBorderRadius(v[0])} />
-          </CardContent>
-        </Card>
+        {/* CONTENT */}
+        {tab === "settings" && (
+          <section className="bg-white/6 p-4 rounded-xl shadow-sm space-y-3">
 
-        {/* إعدادات الخط */}
-        <Card className="shadow-lg rounded-2xl">
-          <CardHeader className="font-semibold text-lg text-gray-700">✏️ إعدادات الخط</CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label>خط اسم العطر</Label>
-              <Select onValueChange={(v) => setFontSettings({ ...fontSettings, perfumeFont: v })}>
-                <SelectTrigger><SelectValue placeholder={fontSettings.perfumeFont} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Poppins">Poppins</SelectItem>
-                  <SelectItem value="Merriweather">Merriweather</SelectItem>
-                  <SelectItem value="Cairo">Cairo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Label>حجم الخط</Label>
-              <Slider value={[fontSettings.perfumeSize]} min={10} max={30} step={1}
-                onValueChange={(v) => setFontSettings({ ...fontSettings, perfumeSize: v[0] })} />
-            </div>
-            <div>
-              <Label>خط اسم المحل</Label>
-              <Select onValueChange={(v) => setFontSettings({ ...fontSettings, shopFont: v })}>
-                <SelectTrigger><SelectValue placeholder={fontSettings.shopFont} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Poppins">Poppins</SelectItem>
-                  <SelectItem value="Merriweather">Merriweather</SelectItem>
-                  <SelectItem value="Cairo">Cairo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Label>حجم الخط</Label>
-              <Slider value={[fontSettings.shopSize]} min={10} max={30} step={1}
-                onValueChange={(v) => setFontSettings({ ...fontSettings, shopSize: v[0] })} />
-            </div>
-          </CardContent>
-        </Card>
+            <label className="block text-sm text-gray-300">اسم المحل</label>
+            <input className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.shop_name} onChange={(e)=>updateSettings("shop_name", e.target.value)} />
 
-        {/* القوالب */}
-        <Card className="shadow-lg rounded-2xl">
-          <CardHeader className="font-semibold text-lg text-gray-700">📋 القوالب (Templates)</CardHeader>
-          <CardContent className="space-y-3">
-            {templates.map((t, i) => (
-              <div key={i} className="flex gap-2">
-                <Input
-                  placeholder={`اسم العطر رقم ${i + 1}`}
-                  value={t.perfumeName}
-                  onChange={(e) => {
-                    const updated = [...templates];
-                    updated[i].perfumeName = e.target.value;
-                    setTemplates(updated);
-                  }}
-                />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm text-gray-300">عرض الملصق (mm)</label>
+                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_width_mm} onChange={(e)=>updateSettings("label_width_mm", e.target.value)} />
               </div>
-            ))}
-            <Button onClick={handleAddTemplate} variant="outline">➕ إضافة عطر آخر</Button>
-          </CardContent>
-        </Card>
+              <div>
+                <label className="block text-sm text-gray-300">ارتفاع الملصق (mm)</label>
+                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_height_mm} onChange={(e)=>updateSettings("label_height_mm", e.target.value)} />
+              </div>
+            </div>
 
-        {/* زر الطباعة */}
-        <motion.div className="flex justify-center pt-4" whileHover={{ scale: 1.05 }}>
-          <Button onClick={handleGeneratePDF} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-lg shadow-md">
-            🖨️ طباعة الملصق
-          </Button>
-        </motion.div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm text-gray-300">عدد النسخ (1-35)</label>
+                <input type="number" min="1" max="35" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.copies} onChange={(e)=>updateSettings("copies", clampCopies(e.target.value))} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">زاوية الإطار (mm)</label>
+                <input type="range" min="0" max="8" step="0.5" className="w-full" value={settings.radius_mm} onChange={(e)=>updateSettings("radius_mm", e.target.value)} />
+                <div className="text-xs text-gray-400">قيمة: {settings.radius_mm} mm</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-sm text-gray-300">حجم خط العطر</label>
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_perfume_size} onChange={(e)=>updateSettings("font_perfume_size", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-300">حجم خط المحل</label>
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_shop_size} onChange={(e)=>updateSettings("font_shop_size", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-300">حجم خط السعر</label>
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_price_size} onChange={(e)=>updateSettings("font_price_size", e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-300">رفع اللوجو (اختياري)</label>
+              <input type="file" accept="image/*" onChange={(e)=>setLogoFile(e.target.files[0])} className="text-sm text-gray-300" />
+              <div className="text-xs text-gray-400 mt-1">بعد رفع اللوجو سيُرسَل إلى الخادم قبل توليد PDF.</div>
+            </div>
+          </section>
+        )}
+
+        {tab === "templates" && (
+          <section className="bg-white/6 p-4 rounded-xl space-y-3">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-semibold">قوالب الملصقات</h3>
+              <button onClick={addTemplate} className="px-3 py-1 bg-amber-400 text-black rounded">+ جديد</button>
+            </div>
+
+            <div className="space-y-3">
+              {templates.map((t, idx) => (
+                <div key={idx} className="bg-white/5 p-3 rounded space-y-2 border border-white/10">
+                  <div className="flex justify-between items-start">
+                    <strong>قالب #{idx+1}</strong>
+                    <div className="flex gap-2">
+                      <button onClick={()=>removeTemplate(idx)} className="px-2 py-1 bg-red-600 rounded text-sm">حذف</button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-300">اسم العطر</label>
+                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.perfume_name} onChange={(e)=>updateTemplate(idx,"perfume_name", e.target.value)} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm text-gray-300">السعر (د.ج)</label>
+                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.price} onChange={(e)=> {
+                        if (isDigits(e.target.value)) updateTemplate(idx,"price", e.target.value);
+                      }} />
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-300">× الكمية</label>
+                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.multiplier} onChange={(e)=> {
+                        if (isDigits(e.target.value)) updateTemplate(idx,"multiplier", e.target.value);
+                      }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-300">اسم المحل (اختياري للقالب)</label>
+                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.shop_name} onChange={(e)=>updateTemplate(idx,"shop_name", e.target.value)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === "preview" && (
+          <section className="bg-white/6 p-4 rounded-xl space-y-3">
+            <h3 className="font-semibold">معاينة سريعة</h3>
+            <div className="flex gap-3 overflow-x-auto py-2">
+              {templates.map((t, i)=>(
+                <div key={i} onClick={()=>setPreviewIndex(i)} className={`cursor-pointer ${i===previewIndex ? "ring-2 ring-amber-400" : ""}`}>
+                  <PreviewCard t={templates[i]} />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={handlePrintAll} disabled={loading} className="flex-1 py-3 bg-amber-400 text-black rounded font-semibold">{loading ? "جاري الإنشاء..." : "🖨️ طباعة الكل / تحميل PDF"}</button>
+              <button onClick={() => { navigator.clipboard.writeText(JSON.stringify({settings, templates}, null,2)); alert("نسخ الإعدادات") }} className="py-3 px-3 bg-white/5 rounded">نسخ JSON</button>
+            </div>
+          </section>
+        )}
+
+        {/* footer small */}
+        <footer className="text-xs text-gray-400 text-center py-4">
+          تذكير: الطباعة من الهاتف تفتح PDF ثم استخدم خيار الطباعة من متصفح الهاتف أو مشاركة الملف لطابعة متصلة.
+        </footer>
       </div>
     </div>
   );
