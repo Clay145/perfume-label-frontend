@@ -174,6 +174,7 @@ const payload = {
   })),
 };
 
+console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
 
       const res = await fetch(`${BACKEND_BASE}/generate_label`, {
         method: "POST",
