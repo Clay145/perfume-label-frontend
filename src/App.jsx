@@ -1,5 +1,7 @@
-import React, { useState } from "react";
 
+import React, { useState } from "react";
+import Preview from "./components/Preview.jsx";
+import TemplateEditor from "./components/TemplateEditor.jsx";
 /*
   App.jsx
   - Tabs: Settings | Templates | Preview & Print
@@ -12,7 +14,7 @@ import React, { useState } from "react";
     }
 */
 
-const BACKEND_BASE = "https://perfume-label-backend.onrender.com"; // <- غيّره هنا إذا لزم
+const BACKEND_BASE = "http://127.0.0.1:8000"; // <- غيّره هنا إذا لزم
 
 const defaultSettings = {
   shop_name: "",
@@ -31,11 +33,40 @@ export default function App() {
   const [tab, setTab] = useState("settings"); // 'settings' | 'templates' | 'preview'
   const [settings, setSettings] = useState(defaultSettings);
   const [templates, setTemplates] = useState([
-    { perfume_name: "", price: "", multiplier: "", shop_name: "" },
+    {
+      perfume_name: "", price: "", multiplier: "", shop_name: "", id: 1,
+    }
   ]);
+  const currentTemplate = {
+    width: 400,
+    height: 250,
+    elements: [
+      { id: "logo", label: "🪶 شعار", type: "image", x: 10, y: 10, width: 60, height: 60 },
+      { id: "product_name", label: "اسم العطر", type: "text", x: 100, y: 20, fontSize: 18 },
+      { id: "shop_name", label: "اسم المحل", type: "text", x: 100, y: 60, fontSize: 14 },
+      { id: "price", label: "السعر", type: "text", x: 100, y: 100, fontSize: 16 },
+    ],
+  };
+
   const [logoFile, setLogoFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
+  // 1) أعلى الملف داخل component state — أضف:
+  const [theme, setTheme] = useState("gold_black"); // "gold_black" | "custom"
+  const [primaryColor, setPrimaryColor] = useState("#D4AF37"); // gold default
+  const [accentColor, setAccentColor] = useState("#080808");   // black default
+  const [selectedFont, setSelectedFont] = useState("Playfair"); // اسم الخط الذي سترسله للخادم
+  const [phoneNumber, setPhoneNumber] = useState(""); // رقم المحل العام
+  const [labelData, setLabelData] = useState({
+    name: "",
+    logo: "",
+    price: "",
+    volume: "",
+    phone: "",
+    positions: {},
+  });
+  const [editMode, setEditMode] = useState(false);
+  const [borderColor, setBorderColor] = useState("#D4AF37");
 
   // helpers validators
   const isDigits = (s) => /^\d*$/.test(String(s));
@@ -58,6 +89,14 @@ export default function App() {
       return arr;
     });
   }
+  // داخل App.jsx
+  const handleTemplateSave = (updatedTemplate) => {
+    const updatedTemplates = templates.map((t, idx) =>
+      idx === previewIndex ? updatedTemplate : t
+    );
+    setTemplates(updatedTemplates);
+  };
+
   function removeTemplate(idx) {
     setTemplates((t) => t.filter((_, i) => i !== idx));
     setPreviewIndex((p) => Math.max(0, p - 1));
@@ -142,37 +181,46 @@ export default function App() {
       // 1) upload logo if exists
       const up = await uploadLogoIfAny();
       if (!up.ok) {
-        const txt = await up.text().catch(()=>null);
+        const txt = await up.text().catch(() => null);
         alert("فشل رفع اللوجو: " + (txt || up.status));
         setLoading(false);
         return;
       }
 
-      // 2) prepare payload (backend expects mm for label dims and templates array)
       // 2) إعداد الحمولة (payload)
       const payload = {
-       shop_name: "okpe",
-       copies: 4,
-       label_width_mm: 40,
-       label_height_mm: 40,
-       radius_mm: 2,
-       font_perfume_name: "Helvetica-Bold",
-       font_shop_name: "Times-Italic",
-       font_perfume_size: 14,
-       font_shop_size: 10,
-       font_price_size: 10,
-       templates: [
-        {
-         perfume_name: "kopkvd",
-         price: "3520",
-         multiplier: "5",
-         shop_name: "opkgred"
-        }
-      ]
-    };
+        shopName: settings.shop_name,
+        copies: Number(settings.copies),
+        labelWidth: Number(settings.label_width_mm),
+        labelHeight: Number(settings.label_height_mm),
+        borderRadius: Number(settings.radius_mm),
+        fontSettings: {
+          perfumeFont: selectedFont || settings.font_perfume_name,
+          perfumeSize: Number(settings.font_perfume_size),
+          shopFont: settings.font_shop_name,
+          shopSize: Number(settings.font_shop_size),
+          priceFont: "Helvetica-Bold",
+          priceSize: Number(settings.font_price_size),
+          quantityFont: "Helvetica",
+          quantitySize: 9,
+        },
+        style: {
+          theme: theme,
+          primaryColor: primaryColor,  // send hex strings; backend should parse
+          accentColor: accentColor,
+          borderColor: borderColor
+        },
+        phone: phoneNumber,
+        templates: templates.map(t => ({
+          perfumeName: t.perfume_name,
+          price: t.price,
+          multiplier: t.multiplier,
+          shopName: t.shop_name,
+          extraInfo: t.extra_info || "",
+        })),
+      };
 
-
-console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
+      console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
 
 
       const res = await fetch(`${BACKEND_BASE}/generate_label`, {
@@ -182,7 +230,7 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
       });
 
       if (!res.ok) {
-        const txt = await res.text().catch(()=>null);
+        const txt = await res.text().catch(() => null);
         alert("خطأ من الخادم: " + (txt || res.status));
         setLoading(false);
         return;
@@ -193,7 +241,6 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
       window.open(url, "_blank");
     } catch (err) {
       console.error(err);
-      alert("حدث خطأ أثناء عملية الإنشاء. تحقق من الكونسول.");
     } finally {
       setLoading(false);
     }
@@ -210,7 +257,7 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
         <div style={{
           width: "180px",
           height: "180px",
-          borderRadius: `${Math.max(0, Math.min(20, radius*1.5))}px`,
+          borderRadius: `${Math.max(0, Math.min(20, radius * 1.5))}px`,
           border: "1px solid rgba(255,255,255,0.12)",
           display: "flex",
           flexDirection: "column",
@@ -218,12 +265,12 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
           justifyContent: "space-between",
           padding: 12
         }}>
-          <div style={{width: "60%", height: 36, background: "rgba(255,255,255,0.06)", borderRadius: 6}} />
-          <div style={{textAlign: "center"}}>
-            <div style={{fontSize: `${fontPerf}px`, fontWeight: 700}}>{t.perfume_name}</div>
-            <div style={{fontSize: `${fontShop}px`, fontStyle: "italic"}}>{t.shop_name || settings.shop_name}</div>
+          <div style={{ width: "60%", height: 36, background: "rgba(255,255,255,0.06)", borderRadius: 6 }} />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: `${fontPerf}px`, fontWeight: 700 }}>{t.perfume_name}</div>
+            <div style={{ fontSize: `${fontShop}px`, fontStyle: "italic" }}>{t.shop_name || settings.shop_name}</div>
           </div>
-          <div style={{fontSize: `${fontPrice}px`}}>{t.price ? `${t.price} د.ج ${t.multiplier ? `(×${t.multiplier})` : ""}` : ""}</div>
+          <div style={{ fontSize: `${fontPrice}px` }}>{t.price ? `${t.price} د.ج ${t.multiplier ? `(×${t.multiplier})` : ""}` : ""}</div>
         </div>
       </div>
     );
@@ -235,40 +282,40 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
 
         {/* header */}
         <header className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-amber-300">Amine Perfume — مولّد الملصقات</h1>
+          <h1 className="text-xl font-bold text-amber-300">Amine Perfume </h1>
           <div className="flex gap-2">
-            <button onClick={()=>setTab("settings")} className={`px-3 py-1 rounded ${tab==="settings" ? "bg-amber-400 text-black" : "bg-white/5"}`}>الإعدادات</button>
-            <button onClick={()=>setTab("templates")} className={`px-3 py-1 rounded ${tab==="templates" ? "bg-amber-400 text-black" : "bg-white/5"}`}>Templates</button>
-            <button onClick={()=>setTab("preview")} className={`px-3 py-1 rounded ${tab==="preview" ? "bg-amber-400 text-black" : "bg-white/5"}`}>معاينة</button>
+            <button onClick={() => setTab("settings")} className={`px-3 py-1 rounded ${tab === "settings" ? "bg-amber-400 text-black" : "bg-white/5"}`}>الإعدادات</button>
+            <button onClick={() => setTab("templates")} className={`px-3 py-1 rounded ${tab === "templates" ? "bg-amber-400 text-black" : "bg-white/5"}`}>Templates</button>
+            <button onClick={() => setTab("editor")} className={`px-3 py-1 rounded ${tab === "editor" ? "bg-amber-400 text-black" : "bg-white/5"}`}>تعديل الأماكن</button>
+            <button onClick={() => setTab("preview")} className={`px-3 py-1 rounded ${tab === "preview" ? "bg-amber-400 text-black" : "bg-white/5"}`}>معاينة</button>
           </div>
         </header>
 
         {/* CONTENT */}
         {tab === "settings" && (
           <section className="bg-white/6 p-4 rounded-xl shadow-sm space-y-3">
-
             <label className="block text-sm text-gray-300">اسم المحل</label>
-            <input className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.shop_name} onChange={(e)=>updateSettings("shop_name", e.target.value)} />
+            <input className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.shop_name} onChange={(e) => updateSettings("shop_name", e.target.value)} />
 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm text-gray-300">عرض الملصق (mm)</label>
-                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_width_mm} onChange={(e)=>updateSettings("label_width_mm", e.target.value)} />
+                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_width_mm} onChange={(e) => updateSettings("label_width_mm", e.target.value)} />
               </div>
               <div>
                 <label className="block text-sm text-gray-300">ارتفاع الملصق (mm)</label>
-                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_height_mm} onChange={(e)=>updateSettings("label_height_mm", e.target.value)} />
+                <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_height_mm} onChange={(e) => updateSettings("label_height_mm", e.target.value)} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm text-gray-300">عدد النسخ (1-35)</label>
-                <input type="number" min="1" max="35" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.copies} onChange={(e)=>updateSettings("copies", clampCopies(e.target.value))} />
+                <input type="number" min="1" max="35" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.copies} onChange={(e) => updateSettings("copies", clampCopies(e.target.value))} />
               </div>
               <div>
                 <label className="block text-sm text-gray-300">زاوية الإطار (mm)</label>
-                <input type="range" min="0" max="8" step="0.5" className="w-full" value={settings.radius_mm} onChange={(e)=>updateSettings("radius_mm", e.target.value)} />
+                <input type="range" min="0" max="8" step="0.5" className="w-full" value={settings.radius_mm} onChange={(e) => updateSettings("radius_mm", e.target.value)} />
                 <div className="text-xs text-gray-400">قيمة: {settings.radius_mm} mm</div>
               </div>
             </div>
@@ -276,25 +323,91 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-sm text-gray-300">حجم خط العطر</label>
-                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_perfume_size} onChange={(e)=>updateSettings("font_perfume_size", e.target.value)} />
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_perfume_size} onChange={(e) => updateSettings("font_perfume_size", e.target.value)} />
               </div>
               <div>
                 <label className="text-sm text-gray-300">حجم خط المحل</label>
-                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_shop_size} onChange={(e)=>updateSettings("font_shop_size", e.target.value)} />
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_shop_size} onChange={(e) => updateSettings("font_shop_size", e.target.value)} />
               </div>
               <div>
                 <label className="text-sm text-gray-300">حجم خط السعر</label>
-                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_price_size} onChange={(e)=>updateSettings("font_price_size", e.target.value)} />
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_price_size} onChange={(e) => updateSettings("font_price_size", e.target.value)} />
               </div>
             </div>
 
             <div>
               <label className="block text-sm text-gray-300">رفع اللوجو (اختياري)</label>
-              <input type="file" accept="image/*" onChange={(e)=>setLogoFile(e.target.files[0])} className="text-sm text-gray-300" />
+              <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files[0])} className="text-sm text-gray-300" />
               <div className="text-xs text-gray-400 mt-1">بعد رفع اللوجو سيُرسَل إلى الخادم قبل توليد PDF.</div>
             </div>
           </section>
         )}
+        {/* Style / Theme */}
+        <div className="mt-3 p-3 bg-white/4 rounded">
+          <label className="block text-sm text-gray-300 font-semibold mb-1">المظهر (Style)</label>
+          <div className="flex gap-2 items-center mb-2">
+            <button onClick={() => { setTheme("gold_black"); setPrimaryColor("#D4AF37"); setAccentColor("#080808"); }} className={`px-2 py-1 rounded ${theme === "gold_black" ? "bg-amber-400 text-black" : "bg-white/5"}`}>ذهب/أسود</button>
+            <button onClick={() => setTheme("custom")} className={`px-2 py-1 rounded ${theme === "custom" ? "bg-amber-400 text-black" : "bg-white/5"}`}>مخصص</button>
+          </div>
+
+          {theme === "custom" && (
+            <div className="grid grid-cols-2 gap-4">
+              {/* لون النص الرئيسي */}
+              <div>
+                <label className="text-xs text-gray-300 mb-1 block">لون النص الرئيسي</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="w-10 h-10 rounded cursor-pointer border border-white/30"
+                  />
+                  <span className="text-sm text-white">{primaryColor}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300">لون الإطار (اختياري)</label>
+                <input
+                  type="color"
+                  value={borderColor}
+                  onChange={(e) => setBorderColor(e.target.value)}
+                  className="w-full h-8 rounded border border-white/20"
+                />
+              </div>
+
+              {/* لون الخلفية / التدرج */}
+              <div>
+                <label className="text-xs text-gray-300 mb-1 block">لون الخلفية / التدرج</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="w-10 h-10 rounded cursor-pointer border border-white/30"
+                  />
+                  <span className="text-sm text-white">{accentColor}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-300">اختر خط (سيُرسل للخادم)</label>
+              <select value={selectedFont} onChange={(e) => setSelectedFont(e.target.value)} className="w-full p-2 rounded bg-transparent border border-white/20 text-white">
+                <option value="Playfair">Playfair Display (elegant)</option>
+                <option value="Cinzel">Cinzel (decorative)</option>
+                <option value="Amiri">Amiri (Arabic serif)</option>
+                <option value="Helvetica-Bold">Helvetica (system fallback)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-300">رقم المحل (اختياري)</label>
+              <input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="مثال: +213 123 456 789" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" />
+            </div>
+          </div>
+        </div>
 
         {tab === "templates" && (
           <section className="bg-white/6 p-4 rounded-xl space-y-3">
@@ -307,36 +420,47 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
               {templates.map((t, idx) => (
                 <div key={idx} className="bg-white/5 p-3 rounded space-y-2 border border-white/10">
                   <div className="flex justify-between items-start">
-                    <strong>قالب #{idx+1}</strong>
+                    <strong>قالب #{idx + 1}</strong>
                     <div className="flex gap-2">
-                      <button onClick={()=>removeTemplate(idx)} className="px-2 py-1 bg-red-600 rounded text-sm">حذف</button>
+                      <button onClick={() => removeTemplate(idx)} className="px-2 py-1 bg-red-600 rounded text-sm">حذف</button>
                     </div>
                   </div>
 
                   <div>
                     <label className="text-sm text-gray-300">اسم العطر</label>
-                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.perfume_name} onChange={(e)=>updateTemplate(idx,"perfume_name", e.target.value)} />
+                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.perfume_name} onChange={(e) => updateTemplate(idx, "perfume_name", e.target.value)} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-sm text-gray-300">السعر (د.ج)</label>
-                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.price} onChange={(e)=> {
-                        if (isDigits(e.target.value)) updateTemplate(idx,"price", e.target.value);
+                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.price} onChange={(e) => {
+                        if (isDigits(e.target.value)) updateTemplate(idx, "price", e.target.value);
                       }} />
                     </div>
                     <div>
                       <label className="text-sm text-gray-300">× الكمية</label>
-                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.multiplier} onChange={(e)=> {
-                        if (isDigits(e.target.value)) updateTemplate(idx,"multiplier", e.target.value);
+                      <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.multiplier} onChange={(e) => {
+                        if (isDigits(e.target.value)) updateTemplate(idx, "multiplier", e.target.value);
                       }} />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-sm text-gray-300">اسم المحل (اختياري للقالب)</label>
-                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.shop_name} onChange={(e)=>updateTemplate(idx,"shop_name", e.target.value)} />
+                    <label className="text-sm text-gray-300">اسم المحل (اختياري )</label>
+                    <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.shop_name} onChange={(e) => updateTemplate(idx, "shop_name", e.target.value)} />
                   </div>
+
+                  <div>
+                    <label className="text-sm text-gray-300">أي إضافات في المعلومات (اختياري)</label>
+                    <textarea
+                      className="w-full p-2 rounded bg-transparent border border-white/20"
+                      value={t.extra_info || ""}
+                      onChange={(e) => updateTemplate(idx, "extra_info", e.target.value)}
+                      placeholder="أضف ملاحظات، مكونات، أو أي معلومات إضافية"
+                    />
+                  </div>
+
                 </div>
               ))}
             </div>
@@ -345,18 +469,57 @@ console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null,
 
         {tab === "preview" && (
           <section className="bg-white/6 p-4 rounded-xl space-y-3">
-            <h3 className="font-semibold">معاينة سريعة</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-white">معاينة سريعة</h3>
+              <button
+                onClick={() => setEditMode(!editMode)}
+                className={`px-3 py-2 rounded font-semibold ${editMode ? "bg-green-500 text-white" : "bg-amber-400 text-black"
+                  }`}
+              >
+                {editMode ? "🧩 وضع المعاينة" : "✏️ تعديل الأماكن"}
+              </button>
+            </div>
+
+            {/* دمج بيانات الإعدادات والقالب المختار */}
+            <Preview
+              template={currentTemplate}
+              data={settings}
+              editable={editMode}
+              onPositionsSave={handleTemplateSave}
+            />
+
+
+            {/* قائمة القوالب */}
             <div className="flex gap-3 overflow-x-auto py-2">
-              {templates.map((t, i)=>(
-                <div key={i} onClick={()=>setPreviewIndex(i)} className={`cursor-pointer ${i===previewIndex ? "ring-2 ring-amber-400" : ""}`}>
-                  <PreviewCard t={templates[i]} />
+              {templates.map((t, i) => (
+                <div
+                  key={i}
+                  onClick={() => setPreviewIndex(i)}
+                  className={`cursor-pointer ${i === previewIndex ? "ring-2 ring-amber-400" : ""}`}
+                >
+                  <PreviewCard t={t} />
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-2">
-              <button onClick={handlePrintAll} disabled={loading} className="flex-1 py-3 bg-amber-400 text-black rounded font-semibold">{loading ? "جاري الإنشاء..." : "🖨️ طباعة الكل / تحميل PDF"}</button>
-              <button onClick={() => { navigator.clipboard.writeText(JSON.stringify({settings, templates}, null,2)); alert("نسخ الإعدادات") }} className="py-3 px-3 bg-white/5 rounded">نسخ JSON</button>
+            {/* أزرار الطباعة ونسخ الإعدادات */}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handlePrintAll}
+                disabled={loading}
+                className="flex-1 py-3 bg-amber-400 text-black rounded font-semibold"
+              >
+                {loading ? "جاري الإنشاء..." : "🖨️ طباعة الكل / تحميل PDF"}
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify({ settings, templates }, null, 2));
+                  alert("نسخ JSON");
+                }}
+                className="py-3 px-3 bg-white/5 rounded"
+              >
+                نسخ JSON
+              </button>
             </div>
           </section>
         )}
