@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Preview from "./components/Preview.jsx";
 import TemplateEditor from "./components/TemplateEditor.jsx";
 /*
@@ -30,9 +29,13 @@ const defaultSettings = {
 };
 
 export default function App() {
+  // 🧠 نحاول قراءة أي بيانات محفوظة قبل إنشاء الحالة
+  const saved = localStorage.getItem("labelAppData");
+  const parsed = saved ? JSON.parse(saved) : {};
+
   const [tab, setTab] = useState("settings"); // 'settings' | 'templates' | 'preview'
-  const [settings, setSettings] = useState(defaultSettings);
-  const [templates, setTemplates] = useState([
+  const [settings, setSettings] = useState(parsed.settings || defaultSettings);
+  const [templates, setTemplates] = useState(parsed.templates || [
     {
       perfume_name: "", price: "", multiplier: "", shop_name: "", id: 1,
     }
@@ -67,6 +70,41 @@ export default function App() {
   });
   const [editMode, setEditMode] = useState(false);
   const [borderColor, setBorderColor] = useState("#D4AF37");
+
+  useEffect(() => {
+    const data = {
+      templates,
+      settings,
+      theme,
+      primaryColor,
+      accentColor,
+      selectedFont,
+      phoneNumber,
+      borderColor
+    };
+    localStorage.setItem("labelAppData", JSON.stringify(data));
+  }, [templates, settings, theme, primaryColor, accentColor, selectedFont, phoneNumber, borderColor]);
+
+  // 🔹 حفظ البيانات عند أي تغيير
+  useEffect(() => {
+    const saved = localStorage.getItem("labelAppData");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.templates) setTemplates(parsed.templates);
+        if (parsed.settings) setSettings(parsed.settings);
+        if (parsed.theme) setTheme(parsed.theme);
+        if (parsed.primaryColor) setPrimaryColor(parsed.primaryColor);
+        if (parsed.accentColor) setAccentColor(parsed.accentColor);
+        if (parsed.selectedFont) setSelectedFont(parsed.selectedFont);
+        if (parsed.phoneNumber) setPhoneNumber(parsed.phoneNumber);
+        if (parsed.borderColor) setBorderColor(parsed.borderColor);
+      } catch (e) {
+        console.error("❌ خطأ في قراءة البيانات المحفوظة:", e);
+      }
+    }
+  }, []);
+
 
   // helpers validators
   const isDigits = (s) => /^\d*$/.test(String(s));
@@ -288,6 +326,14 @@ export default function App() {
             <button onClick={() => setTab("templates")} className={`px-3 py-1 rounded ${tab === "templates" ? "bg-amber-400 text-black" : "bg-white/5"}`}>Templates</button>
             <button onClick={() => setTab("editor")} className={`px-3 py-1 rounded ${tab === "editor" ? "bg-amber-400 text-black" : "bg-white/5"}`}>تعديل الأماكن</button>
             <button onClick={() => setTab("preview")} className={`px-3 py-1 rounded ${tab === "preview" ? "bg-amber-400 text-black" : "bg-white/5"}`}>معاينة</button>
+            <button onClick={() => {
+                localStorage.removeItem("labelAppData");
+                alert("تم حذف الإعدادات السابقة");
+              }}
+              className="px-3 py-1 bg-red-500 text-white rounded"
+            >
+              🗑️ مسح الإعدادات
+            </button>
           </div>
         </header>
 
