@@ -13,7 +13,7 @@ import TemplateEditor from "./components/TemplateEditor.jsx";
     }
 */
 
-const BACKEND_BASE = "http://127.0.0.1:8000"; // <- غيّره هنا إذا لزم
+const BACKEND_BASE = "https://perfume-label-backend.onrender.com"; // <- غيّره هنا إذا لزم
 
 const defaultSettings = {
   shop_name: "",
