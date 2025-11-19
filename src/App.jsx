@@ -1,35 +1,30 @@
 import React, { useState, useEffect } from "react";
 import Preview from "./components/Preview.jsx";
-import TemplateEditor from "./components/TemplateEditor.jsx";
+
 /*
   App.jsx
   - Tabs: Settings | Templates | Preview & Print
   - Sends POST /upload_logo (optional) then POST /generate_label
-  - Expects backend with LabelSettings model:
-    {
-      shop_name, copies, label_width_mm, label_height_mm, radius_mm,
-      font_perfume_name, font_shop_name, font_perfume_size, font_shop_size, font_price_size,
-      templates: [{perfume_name, price, multiplier, shop_name, extra_fields?}, ...]
-    }
 */
 
-const BACKEND_BASE = "https://perfume-label-backend.onrender.com"; // <- غيّره هنا إذا لزم
+const BACKEND_BASE = "http://127.0.0.1:8000";
 
 const defaultSettings = {
   shop_name: "",
   copies: 4,
-  label_width_mm: 40,   // mm
-  label_height_mm: 40,  // mm
+  label_width_mm: 40,
+  label_height_mm: 40,
   radius_mm: 2,
   font_perfume_name: "Helvetica-Bold",
   font_shop_name: "Times-Italic",
   font_perfume_size: 14,
   font_shop_size: 10,
   font_price_size: 10,
+  font_extra_size: 9,
 };
 
 export default function App() {
-  // 🧠 نحاول قراءة أي بيانات محفوظة قبل إنشاء الحالة
+  // Try to load saved data
   const saved = localStorage.getItem("labelAppData");
   const parsed = saved ? JSON.parse(saved) : {};
 
@@ -37,40 +32,39 @@ export default function App() {
   const [settings, setSettings] = useState(parsed.settings || defaultSettings);
   const [templates, setTemplates] = useState(parsed.templates || [
     {
-      perfume_name: "", price: "", multiplier: "", shop_name: "", id: 1,
+      perfume_name: "", price: "", multiplier: "", shop_name: "", extra_info: "", id: 1,
     }
   ]);
-  const currentTemplate = {
-    width: 400,
-    height: 250,
-    elements: [
-      { id: "logo", label: "🪶 شعار", type: "image", x: 10, y: 10, width: 60, height: 60 },
-      { id: "product_name", label: "اسم العطر", type: "text", x: 100, y: 20, fontSize: 18 },
-      { id: "shop_name", label: "اسم المحل", type: "text", x: 100, y: 60, fontSize: 14 },
-      { id: "price", label: "السعر", type: "text", x: 100, y: 100, fontSize: 16 },
-    ],
-  };
 
   const [logoFile, setLogoFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
-  // 1) أعلى الملف داخل component state — أضف:
-  const [theme, setTheme] = useState("gold_black"); // "gold_black" | "custom"
-  const [primaryColor, setPrimaryColor] = useState("#D4AF37"); // gold default
-  const [accentColor, setAccentColor] = useState("#080808");   // black default
-  const [selectedFont, setSelectedFont] = useState("Playfair"); // اسم الخط الذي سترسله للخادم
-  const [phoneNumber, setPhoneNumber] = useState(""); // رقم المحل العام
-  const [labelData, setLabelData] = useState({
-    name: "",
-    logo: "",
-    price: "",
-    volume: "",
-    phone: "",
-    positions: {},
-  });
-  const [editMode, setEditMode] = useState(false);
-  const [borderColor, setBorderColor] = useState("#D4AF37");
+  
+  // Theme & Style State
+  const [theme, setTheme] = useState(parsed.theme || "gold_black");
+  const [primaryColor, setPrimaryColor] = useState(parsed.primaryColor || "#D4AF37");
+  const [accentColor, setAccentColor] = useState(parsed.accentColor || "#080808");
+  const [extraInfoColor, setExtraInfoColor] = useState(parsed.extraInfoColor || "#E5E0D1");
+  const [selectedFont, setSelectedFont] = useState(parsed.selectedFont || "Playfair");
+  const [phoneNumber, setPhoneNumber] = useState(parsed.phoneNumber || "");
+  const [borderColor, setBorderColor] = useState(parsed.borderColor || "#D4AF37");
 
+  // Layout definition for Preview
+  const layoutTemplate = {
+    width: 400,
+    height: 250,
+    elements: [
+      { id: "logo", label: "🪶 شعار", type: "image", x: 10, y: 10, width: 60, height: 60 },
+      { id: "perfume_name", label: "اسم العطر", type: "text", x: 100, y: 20, fontSize: 18 },
+      { id: "shop_name", label: "اسم المحل", type: "text", x: 100, y: 60, fontSize: 14 },
+      { id: "price", label: "السعر", type: "text", x: 100, y: 100, fontSize: 16 },
+      { id: "extra_info", label: "إضافات", type: "text", x: 100, y: 140, fontSize: 12 },
+    ],
+  };
+
+  const currentData = templates[previewIndex] || templates[0];
+
+  // Save data on change
   useEffect(() => {
     const data = {
       templates,
@@ -78,48 +72,27 @@ export default function App() {
       theme,
       primaryColor,
       accentColor,
+      extraInfoColor,
       selectedFont,
       phoneNumber,
       borderColor
     };
     localStorage.setItem("labelAppData", JSON.stringify(data));
-  }, [templates, settings, theme, primaryColor, accentColor, selectedFont, phoneNumber, borderColor]);
+  }, [templates, settings, theme, primaryColor, accentColor, extraInfoColor, selectedFont, phoneNumber, borderColor]);
 
-  // 🔹 حفظ البيانات عند أي تغيير
-  useEffect(() => {
-    const saved = localStorage.getItem("labelAppData");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.templates) setTemplates(parsed.templates);
-        if (parsed.settings) setSettings(parsed.settings);
-        if (parsed.theme) setTheme(parsed.theme);
-        if (parsed.primaryColor) setPrimaryColor(parsed.primaryColor);
-        if (parsed.accentColor) setAccentColor(parsed.accentColor);
-        if (parsed.selectedFont) setSelectedFont(parsed.selectedFont);
-        if (parsed.phoneNumber) setPhoneNumber(parsed.phoneNumber);
-        if (parsed.borderColor) setBorderColor(parsed.borderColor);
-      } catch (e) {
-        console.error("❌ خطأ في قراءة البيانات المحفوظة:", e);
-      }
-    }
-  }, []);
-
-
-  // helpers validators
+  // Helpers
   const isDigits = (s) => /^\d*$/.test(String(s));
   const clampCopies = (v) => Math.max(1, Math.min(35, Number(v) || 1));
 
-  // handle settings change
   function updateSettings(key, value) {
     setSettings((s) => ({ ...s, [key]: value }));
   }
 
-  // template manipulation
   function addTemplate() {
-    setTemplates((t) => [...t, { perfume_name: "", price: "", multiplier: "", shop_name: "" }]);
+    setTemplates((t) => [...t, { perfume_name: "", price: "", multiplier: "", shop_name: "", extra_info: "" }]);
     setPreviewIndex(templates.length);
   }
+
   function updateTemplate(idx, key, value) {
     setTemplates((t) => {
       const arr = [...t];
@@ -127,12 +100,12 @@ export default function App() {
       return arr;
     });
   }
-  // داخل App.jsx
+
   const handleTemplateSave = (updatedTemplate) => {
-    const updatedTemplates = templates.map((t, idx) =>
-      idx === previewIndex ? updatedTemplate : t
-    );
-    setTemplates(updatedTemplates);
+    // Since we removed editing, this might not be needed, 
+    // but keeping it for compatibility if Preview calls it.
+    // However, Preview now receives layoutTemplate which is not in templates state.
+    // So we just ignore layout updates for now as per "Remove Edit Places" request.
   };
 
   function removeTemplate(idx) {
@@ -140,7 +113,6 @@ export default function App() {
     setPreviewIndex((p) => Math.max(0, p - 1));
   }
 
-  // upload logo to backend
   async function uploadLogoIfAny() {
     if (!logoFile) return { ok: true };
     const fd = new FormData();
@@ -157,9 +129,7 @@ export default function App() {
     }
   }
 
-  // validation before sending
   function validateAll() {
-    // settings
     if (!settings.shop_name || String(settings.shop_name).trim() === "") {
       alert("الرجاء إدخال اسم المحل في الإعدادات.");
       setTab("settings");
@@ -170,8 +140,7 @@ export default function App() {
       setTab("settings");
       return false;
     }
-    // check A4 limits
-    const maxWmm = (595.28) / 2.83465; // A4 width points -> mm approx (595.28 pt)
+    const maxWmm = (595.28) / 2.83465;
     const maxHmm = (841.89) / 2.83465;
     if (Number(settings.label_width_mm) > maxWmm || Number(settings.label_height_mm) > maxHmm) {
       alert(`الأبعاد أكبر من صفحة A4. أقصى عرض ≈ ${Math.floor(maxWmm)}mm، أقصى ارتفاع ≈ ${Math.floor(maxHmm)}mm`);
@@ -183,7 +152,6 @@ export default function App() {
       setTab("templates");
       return false;
     }
-    // validate templates: perfume_name required; price and multiplier digits only
     for (let i = 0; i < templates.length; i++) {
       const t = templates[i];
       if (!t.perfume_name || String(t.perfume_name).trim() === "") {
@@ -202,7 +170,6 @@ export default function App() {
         return false;
       }
     }
-    // copies range
     if (!settings.copies || settings.copies < 1 || settings.copies > 35) {
       alert("عدد النسخ يجب أن يكون بين 1 و 35.");
       setTab("settings");
@@ -211,12 +178,10 @@ export default function App() {
     return true;
   }
 
-  // generate and open PDF
   async function handlePrintAll() {
     if (!validateAll()) return;
     setLoading(true);
     try {
-      // 1) upload logo if exists
       const up = await uploadLogoIfAny();
       if (!up.ok) {
         const txt = await up.text().catch(() => null);
@@ -225,7 +190,6 @@ export default function App() {
         return;
       }
 
-      // 2) إعداد الحمولة (payload)
       const payload = {
         shopName: settings.shop_name,
         copies: Number(settings.copies),
@@ -241,11 +205,13 @@ export default function App() {
           priceSize: Number(settings.font_price_size),
           quantityFont: "Helvetica",
           quantitySize: 9,
+          extraInfoSize: Number(settings.font_extra_size || 9),
         },
         style: {
           theme: theme,
-          primaryColor: primaryColor,  // send hex strings; backend should parse
+          primaryColor: primaryColor,
           accentColor: accentColor,
+          extraInfoColor: extraInfoColor,
           borderColor: borderColor
         },
         phone: phoneNumber,
@@ -257,9 +223,6 @@ export default function App() {
           extraInfo: t.extra_info || "",
         })),
       };
-
-      console.log("📦 Payload being sent to backend:", JSON.stringify(payload, null, 2));
-
 
       const res = await fetch(`${BACKEND_BASE}/generate_label`, {
         method: "POST",
@@ -275,7 +238,6 @@ export default function App() {
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      // open in new tab (mobile will allow print/share)
       window.open(url, "_blank");
     } catch (err) {
       console.error(err);
@@ -284,7 +246,6 @@ export default function App() {
     }
   }
 
-  // small preview render for one template at previewIndex
   function PreviewCard({ t }) {
     const fontPerf = settings.font_perfume_size || 12;
     const fontShop = settings.font_shop_size || 10;
@@ -319,17 +280,16 @@ export default function App() {
       <div className="max-w-lg mx-auto space-y-4">
 
         {/* header */}
-        <header className="flex items-center justify-between">
+        <header className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-xl font-bold text-amber-300">Amine Perfume </h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={() => setTab("settings")} className={`px-3 py-1 rounded ${tab === "settings" ? "bg-amber-400 text-black" : "bg-white/5"}`}>الإعدادات</button>
             <button onClick={() => setTab("templates")} className={`px-3 py-1 rounded ${tab === "templates" ? "bg-amber-400 text-black" : "bg-white/5"}`}>Templates</button>
-            <button onClick={() => setTab("editor")} className={`px-3 py-1 rounded ${tab === "editor" ? "bg-amber-400 text-black" : "bg-white/5"}`}>تعديل الأماكن</button>
             <button onClick={() => setTab("preview")} className={`px-3 py-1 rounded ${tab === "preview" ? "bg-amber-400 text-black" : "bg-white/5"}`}>معاينة</button>
             <button onClick={() => {
-                localStorage.removeItem("labelAppData");
-                alert("تم حذف الإعدادات السابقة");
-              }}
+              localStorage.removeItem("labelAppData");
+              alert("تم حذف الإعدادات السابقة");
+            }}
               className="px-3 py-1 bg-red-500 text-white rounded"
             >
               🗑️ مسح الإعدادات
@@ -343,7 +303,7 @@ export default function App() {
             <label className="block text-sm text-gray-300">اسم المحل</label>
             <input className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.shop_name} onChange={(e) => updateSettings("shop_name", e.target.value)} />
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm text-gray-300">عرض الملصق (mm)</label>
                 <input type="number" min="5" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.label_width_mm} onChange={(e) => updateSettings("label_width_mm", e.target.value)} />
@@ -354,7 +314,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm text-gray-300">عدد النسخ (1-35)</label>
                 <input type="number" min="1" max="35" className="w-full p-2 rounded bg-transparent border border-white/20 text-white" value={settings.copies} onChange={(e) => updateSettings("copies", clampCopies(e.target.value))} />
@@ -366,7 +326,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-sm text-gray-300">حجم خط العطر</label>
                 <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_perfume_size} onChange={(e) => updateSettings("font_perfume_size", e.target.value)} />
@@ -378,6 +338,10 @@ export default function App() {
               <div>
                 <label className="text-sm text-gray-300">حجم خط السعر</label>
                 <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_price_size} onChange={(e) => updateSettings("font_price_size", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-300">حجم خط الإضافات</label>
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_extra_size || 9} onChange={(e) => updateSettings("font_extra_size", e.target.value)} />
               </div>
             </div>
 
@@ -397,7 +361,7 @@ export default function App() {
           </div>
 
           {theme === "custom" && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* لون النص الرئيسي */}
               <div>
                 <label className="text-xs text-gray-300 mb-1 block">لون النص الرئيسي</label>
@@ -435,10 +399,24 @@ export default function App() {
                   <span className="text-sm text-white">{accentColor}</span>
                 </div>
               </div>
+
+              {/* لون الإضافات */}
+              <div>
+                <label className="text-xs text-gray-300 mb-1 block">لون الإضافات</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={extraInfoColor}
+                    onChange={(e) => setExtraInfoColor(e.target.value)}
+                    className="w-10 h-10 rounded cursor-pointer border border-white/30"
+                  />
+                  <span className="text-sm text-white">{extraInfoColor}</span>
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-gray-300">اختر خط (سيُرسل للخادم)</label>
               <select value={selectedFont} onChange={(e) => setSelectedFont(e.target.value)} className="w-full p-2 rounded bg-transparent border border-white/20 text-white">
@@ -477,7 +455,7 @@ export default function App() {
                     <input className="w-full p-2 rounded bg-transparent border border-white/20" value={t.perfume_name} onChange={(e) => updateTemplate(idx, "perfume_name", e.target.value)} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="text-sm text-gray-300">السعر (د.ج)</label>
                       <input inputMode="numeric" pattern="[0-9]*" className="w-full p-2 rounded bg-transparent border border-white/20" value={t.price} onChange={(e) => {
@@ -515,27 +493,13 @@ export default function App() {
 
         {tab === "preview" && (
           <section className="bg-white/6 p-4 rounded-xl space-y-3">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">معاينة سريعة</h3>
-              <button
-                onClick={() => setEditMode(!editMode)}
-                className={`px-3 py-2 rounded font-semibold ${editMode ? "bg-green-500 text-white" : "bg-amber-400 text-black"
-                  }`}
-              >
-                {editMode ? "🧩 وضع المعاينة" : "✏️ تعديل الأماكن"}
-              </button>
-            </div>
-
-            {/* دمج بيانات الإعدادات والقالب المختار */}
+            
             <Preview
-              template={currentTemplate}
-              data={settings}
-              editable={editMode}
+              template={layoutTemplate}
+              data={{ ...settings, ...currentData }}
               onPositionsSave={handleTemplateSave}
             />
 
-
-            {/* قائمة القوالب */}
             <div className="flex gap-3 overflow-x-auto py-2">
               {templates.map((t, i) => (
                 <div
@@ -548,7 +512,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* أزرار الطباعة ونسخ الإعدادات */}
             <div className="flex gap-2 mt-4">
               <button
                 onClick={handlePrintAll}
