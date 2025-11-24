@@ -7,7 +7,7 @@ import Preview from "./components/Preview.jsx";
   - Sends POST /upload_logo (optional) then POST /generate_label
 */
 
-const BACKEND_BASE = "http://127.0.0.1:8000";
+const BACKEND_BASE = "https://perfume-label-backend.onrender.com";
 
 const defaultSettings = {
   shop_name: "",
@@ -20,6 +20,7 @@ const defaultSettings = {
   font_perfume_size: 14,
   font_shop_size: 10,
   font_price_size: 10,
+  font_quantity_size: 9,
   font_extra_size: 9,
 };
 
@@ -39,7 +40,7 @@ export default function App() {
   const [logoFile, setLogoFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
-  
+
   // Theme & Style State
   const [theme, setTheme] = useState(parsed.theme || "gold_black");
   const [primaryColor, setPrimaryColor] = useState(parsed.primaryColor || "#D4AF37");
@@ -48,6 +49,8 @@ export default function App() {
   const [selectedFont, setSelectedFont] = useState(parsed.selectedFont || "Playfair");
   const [phoneNumber, setPhoneNumber] = useState(parsed.phoneNumber || "");
   const [borderColor, setBorderColor] = useState(parsed.borderColor || "#D4AF37");
+  const [shopNameColor, setShopNameColor] = useState(parsed.shopNameColor || "#C5C0B0");
+  const [quantityColor, setQuantityColor] = useState(parsed.quantityColor || "#C5C0B0");
 
   // Layout definition for Preview
   const layoutTemplate = {
@@ -75,10 +78,12 @@ export default function App() {
       extraInfoColor,
       selectedFont,
       phoneNumber,
-      borderColor
+      borderColor,
+      shopNameColor,
+      quantityColor
     };
     localStorage.setItem("labelAppData", JSON.stringify(data));
-  }, [templates, settings, theme, primaryColor, accentColor, extraInfoColor, selectedFont, phoneNumber, borderColor]);
+  }, [templates, settings, theme, primaryColor, accentColor, extraInfoColor, selectedFont, phoneNumber, borderColor, shopNameColor, quantityColor]);
 
   // Helpers
   const isDigits = (s) => /^\d*$/.test(String(s));
@@ -204,7 +209,7 @@ export default function App() {
           priceFont: "Helvetica-Bold",
           priceSize: Number(settings.font_price_size),
           quantityFont: "Helvetica",
-          quantitySize: 9,
+          quantitySize: Number(settings.font_quantity_size || 9),
           extraInfoSize: Number(settings.font_extra_size || 9),
         },
         style: {
@@ -212,7 +217,9 @@ export default function App() {
           primaryColor: primaryColor,
           accentColor: accentColor,
           extraInfoColor: extraInfoColor,
-          borderColor: borderColor
+          borderColor: borderColor,
+          shopNameColor: shopNameColor,
+          quantityColor: quantityColor
         },
         phone: phoneNumber,
         templates: templates.map(t => ({
@@ -266,10 +273,13 @@ export default function App() {
         }}>
           <div style={{ width: "60%", height: 36, background: "rgba(255,255,255,0.06)", borderRadius: 6 }} />
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: `${fontPerf}px`, fontWeight: 700 }}>{t.perfume_name}</div>
-            <div style={{ fontSize: `${fontShop}px`, fontStyle: "italic" }}>{t.shop_name || settings.shop_name}</div>
+            <div style={{ fontSize: `${fontPerf}px`, fontWeight: 700, color: primaryColor }}>{t.perfume_name}</div>
+            <div style={{ fontSize: `${fontShop}px`, fontStyle: "italic", color: shopNameColor }}>{t.shop_name || settings.shop_name}</div>
           </div>
-          <div style={{ fontSize: `${fontPrice}px` }}>{t.price ? `${t.price} د.ج ${t.multiplier ? `(×${t.multiplier})` : ""}` : ""}</div>
+          <div style={{ fontSize: `${fontPrice}px`, color: primaryColor }}>
+            {t.price ? `${t.price} د.ج` : ""}
+            {t.multiplier && <span style={{ fontSize: `${settings.font_quantity_size || 9}px`, color: quantityColor, marginLeft: "4px" }}> (×{t.multiplier})</span>}
+          </div>
         </div>
       </div>
     );
@@ -343,6 +353,10 @@ export default function App() {
                 <label className="text-sm text-gray-300">حجم خط الإضافات</label>
                 <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_extra_size || 9} onChange={(e) => updateSettings("font_extra_size", e.target.value)} />
               </div>
+              <div>
+                <label className="text-sm text-gray-300">حجم خط الكمية</label>
+                <input type="number" min="6" max="72" className="w-full p-2 rounded bg-transparent border border-white/20" value={settings.font_quantity_size || 9} onChange={(e) => updateSettings("font_quantity_size", e.target.value)} />
+              </div>
             </div>
 
             <div>
@@ -411,6 +425,34 @@ export default function App() {
                     className="w-10 h-10 rounded cursor-pointer border border-white/30"
                   />
                   <span className="text-sm text-white">{extraInfoColor}</span>
+                </div>
+              </div>
+
+              {/* لون اسم المحل */}
+              <div>
+                <label className="text-xs text-gray-300 mb-1 block">لون اسم المحل</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={shopNameColor}
+                    onChange={(e) => setShopNameColor(e.target.value)}
+                    className="w-10 h-10 rounded cursor-pointer border border-white/30"
+                  />
+                  <span className="text-sm text-white">{shopNameColor}</span>
+                </div>
+              </div>
+
+              {/* لون الكمية */}
+              <div>
+                <label className="text-xs text-gray-300 mb-1 block">لون الكمية</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={quantityColor}
+                    onChange={(e) => setQuantityColor(e.target.value)}
+                    className="w-10 h-10 rounded cursor-pointer border border-white/30"
+                  />
+                  <span className="text-sm text-white">{quantityColor}</span>
                 </div>
               </div>
             </div>
@@ -493,10 +535,17 @@ export default function App() {
 
         {tab === "preview" && (
           <section className="bg-white/6 p-4 rounded-xl space-y-3">
-            
+
             <Preview
               template={layoutTemplate}
-              data={{ ...settings, ...currentData }}
+              data={{
+                ...settings,
+                ...currentData,
+                primaryColor,
+                shopNameColor,
+                quantityColor,
+                extraInfoColor
+              }}
               onPositionsSave={handleTemplateSave}
             />
 
